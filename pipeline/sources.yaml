@@ -67,3 +67,12 @@ sources:
     attribution: "Contains property sales information provided under licence from the Valuer General NSW"
     commercial_use: pending
     cadence_days: 7
+
+  nsw_rent:
+    name: NSW Rent and Sales Report — rent tables (new bonds by postcode)
+    page_url: https://dcj.nsw.gov.au/about-us/families-and-communities-statistics/housing-rent-and-sales/rent-and-sales-report.html
+    link_pattern: (?i)rent-tables.*\.xlsx$
+    licence: CC BY 4.0
+    attribution: "Source: NSW Department of Communities and Justice, Rent and Sales Report"
+    commercial_use: pending
+    cadence_days: 92
