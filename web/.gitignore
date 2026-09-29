@@ -43,3 +43,8 @@ next-env.d.ts
 # test output
 /test-results/
 /playwright-report/
+
+# end-to-end builds and state
+/.next-e2e/
+/.next-e2e-empty/
+/.e2e-state.json

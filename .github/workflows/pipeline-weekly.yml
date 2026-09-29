@@ -46,6 +46,10 @@ jobs:
         working-directory: pipeline
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      WEB_URL: ${{ secrets.WEB_URL }}
+      REVALIDATE_SECRET: ${{ secrets.REVALIDATE_SECRET }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -53,3 +57,13 @@ jobs:
           python-version: "3.12"
       - run: uv sync --locked --no-dev
       - run: uv run python -m propapp_pipeline score
+      # Map tiles carry score bands, so they are rebuilt after every scoring run.
+      - run: sudo apt-get install -y -q tippecanoe
+      - run: uv run python -m propapp_pipeline build-tiles
+      - name: Refresh the website
+        run: |
+          if [ -z "$WEB_URL" ] || [ -z "$REVALIDATE_SECRET" ]; then
+            echo "::notice::WEB_URL or REVALIDATE_SECRET not set; skipping site refresh"
+            exit 0
+          fi
+          curl -fsS -X POST "$WEB_URL/api/revalidate" -H "authorization: Bearer $REVALIDATE_SECRET"
