@@ -13,6 +13,7 @@ from propapp_pipeline.geo.load import build_correspondences, load_suburbs, read_
 from propapp_pipeline.http import download, make_client
 from propapp_pipeline.raw_store import RawStore, SupabaseRawStore
 from propapp_pipeline.runner import run_source
+from propapp_pipeline.scoring.backtest import run_backtest
 from propapp_pipeline.scoring.engine import run_scoring
 from propapp_pipeline.scoring.weights import WEIGHTS_DIR, latest_weights_path, load_weights
 from propapp_pipeline.sources import DEFAULT_CONFIG, load_config
@@ -33,6 +34,13 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     score.add_argument("--cutoff", type=date.fromisoformat, default=date.today(),
                        help="use data with periods ending on or before this date")
     score.add_argument("--weights", help="weights version, e.g. v1 (default: newest)")
+    backtest = sub.add_parser("backtest", help="backtest scores against NSW price growth")
+    backtest.add_argument("--years", required=True, help="backtest years, e.g. 2016-2024")
+    backtest.add_argument("--holdout-from", type=int, required=True,
+                          help="first held-out year; earlier years are for training")
+    backtest.add_argument("--weights", help="weights version to start from (default: newest)")
+    backtest.add_argument("--tune", type=int, metavar="SAMPLES",
+                          help="tune weights on training years with this many random draws")
     return parser.parse_args(argv)
 
 
@@ -50,6 +58,18 @@ def _score(args: argparse.Namespace) -> int:
         logging.getLogger(__name__).exception("scoring failed")
         return 1
     print(f"scored {n} suburbs with {weights.model_version} (cutoff {args.cutoff})")
+    return 0
+
+
+def _backtest(args: argparse.Namespace) -> int:
+    settings = Settings.database_only()
+    first, _, last = args.years.partition("-")
+    report = run_backtest(settings.database_url, int(first), int(last or first),
+                          args.holdout_from, _weights(args.weights), args.tune)
+    for row in report.rows:
+        print(f"{row['split']:>7} {row['horizon_months']}m: spearman={row['spearman']:.3f} "
+              f"over {row['n_dates']} dates")
+    print(f"report: scoring/reports/{report.model_version}-backtest.md")
     return 0
 
 
@@ -90,6 +110,8 @@ def main(argv: list[str] | None = None, *, raw_store: RawStore | None = None) ->
     args = _parse_args(sys.argv[1:] if argv is None else argv)
     if args.command == "score":
         return _score(args)
+    if args.command == "backtest":
+        return _backtest(args)
     settings = Settings.from_env()
     config = load_config(args.config)
     if args.command == "load-geo":

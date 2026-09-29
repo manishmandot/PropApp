@@ -17,6 +17,7 @@ class MarketResult:
     values: pd.DataFrame  # eligible suburbs × market factors
     eligible: pd.Index
     dwelling_type: pd.Series  # "house" | "unit", eligible suburbs
+    reference_month: pd.Series  # L per eligible suburb
 
 
 def _months_back(starts: pd.Series, months: int) -> pd.Series:
@@ -90,4 +91,4 @@ def compute_market(view: pd.DataFrame, as_of: date, weights: Weights) -> MarketR
                                       _total_sales(view, _months_back(ref, 12))) - 1,
     }, index=eligible).reindex(columns=MARKET).astype(float)
     values.index.name = "suburb_code"
-    return MarketResult(values.replace([np.inf, -np.inf], np.nan), eligible, dwelling)
+    return MarketResult(values.replace([np.inf, -np.inf], np.nan), eligible, dwelling, ref)
