@@ -76,3 +76,13 @@ sources:
     attribution: "Source: NSW Department of Communities and Justice, Rent and Sales Report"
     commercial_use: pending
     cadence_days: 92
+
+  vic_vg_medians:
+    name: Victorian Valuer-General property sales statistics (median prices by suburb)
+    page_url: https://www.land.vic.gov.au/valuations/resources-and-reports/property-sales-statistics
+    house_link_pattern: (?i)house.*suburb.*\.xlsx?$
+    unit_link_pattern: (?i)unit.*suburb.*\.xlsx?$
+    licence: CC BY 4.0
+    attribution: "Source: Valuer-General Victoria, property sales statistics"
+    commercial_use: pending
+    cadence_days: 92
