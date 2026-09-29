@@ -35,6 +35,7 @@ describe("queries (seeded)", () => {
     expect(s?.coverage).toBe("fundamentals_market");
     expect(s?.slug).toBe("10001-alpha-nsw");
     expect(s?.median_price).toBe(1_250_000);
+    expect(s?.median_price_month).toBe("2025-09-01");
     expect(s?.dwelling_type).toBe("house");
     expect(s?.gross_yield).toBeCloseTo(0.038);
     expect(s?.top_drivers[0]).toMatch(/^Population grew/);

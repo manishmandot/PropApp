@@ -6,7 +6,7 @@ import { ScoreBadge } from "@/components/ScoreBadge";
 import { ScoreHistory } from "@/components/ScoreHistory";
 import { SuburbMapLazy as SuburbMap } from "@/components/SuburbMapLazy";
 import { getEntitlements } from "@/lib/entitlements";
-import { formatDate, formatPct, formatPrice, formatScore } from "@/lib/format";
+import { formatDate, formatMonth, formatPct, formatPrice, formatScore } from "@/lib/format";
 import { getFreshness, getHistory, getShape, getSuburb } from "@/lib/queries";
 import { parseSuburbParam, suburbPath } from "@/lib/slug";
 import type { SuburbRow } from "@/lib/types";
@@ -58,11 +58,14 @@ export default async function SuburbPage({ params }: Props) {
   const name = displayName(suburb);
   const scored = suburb.coverage != null && suburb.coverage !== "insufficient";
   const figures = [
-    suburb.median_price != null && [`Median ${suburb.dwelling_type ?? "dwelling"} price (12 months)`, formatPrice(suburb.median_price)],
+    suburb.median_price != null && [
+      `Median ${suburb.dwelling_type ?? "dwelling"} price (12 months to ${formatMonth(suburb.median_price_month)})`,
+      formatPrice(suburb.median_price),
+    ],
     suburb.gross_yield != null && ["Gross rental yield", formatPct(suburb.gross_yield)],
     suburb.population_growth_3y != null && ["Population growth (a year, 3 years)", formatPct(suburb.population_growth_3y, true)],
     suburb.supply_pressure != null && ["New dwellings approved per 1,000 homes", suburb.supply_pressure.toFixed(1)],
-  ].filter(Boolean) as [string, string][];
+  ].filter((f): f is [string, string] => scored && Boolean(f));
 
   return (
     <article className="space-y-10">
@@ -78,9 +81,7 @@ export default async function SuburbPage({ params }: Props) {
         <p className="text-ink-2">Scores are being prepared for this suburb.</p>
       )}
       {suburb.coverage === "insufficient" && (
-        <p className="text-ink-2">
-          Not enough data to score this suburb yet. Key figures below are shown where available.
-        </p>
+        <p className="text-ink-2">Not enough data to score this suburb yet.</p>
       )}
 
       {scored && (

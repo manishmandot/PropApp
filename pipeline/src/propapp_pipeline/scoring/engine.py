@@ -98,5 +98,6 @@ def run_scoring(db_url: str, cutoff: date, weights: Weights) -> int:
             "suburbs_scored = %s where id = %s", (len(result.scores), run_id))
         # The web app's suburb list is a materialized view over the current (latest
         # successful) model, so it can only be refreshed once this run counts as successful.
-        run_log.execute("refresh materialized view api.suburbs")
+        # CONCURRENTLY keeps the site readable during the refresh (needs the unique index).
+        run_log.execute("refresh materialized view concurrently api.suburbs")
     return len(result.scores)

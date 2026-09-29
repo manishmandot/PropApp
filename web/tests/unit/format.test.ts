@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatPct, formatPrice, formatScore } from "@/lib/format";
+import { formatMonth, formatPct, formatPrice, formatScore } from "@/lib/format";
 
 describe("format", () => {
   it("formats prices", () => {
@@ -15,5 +15,7 @@ describe("format", () => {
     expect(formatPct(null)).toBe("—");
     expect(formatScore(72.6)).toBe("73");
     expect(formatScore(null)).toBe("—");
+    expect(formatMonth("2025-09-01")).toBe("Sep 2025");
+    expect(formatMonth(null)).toBe("—");
   });
 });

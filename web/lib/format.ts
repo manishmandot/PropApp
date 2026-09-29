@@ -25,3 +25,12 @@ export function formatDate(d: string | Date | null | undefined): string {
 function trim(fixed: string): string {
   return fixed.replace(/\.?0+$/, "");
 }
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "Sep 2025" from an ISO date (read as UTC, so the month never shifts by time zone). */
+export function formatMonth(isoDate: string | null | undefined): string {
+  if (!isoDate) return DASH;
+  const d = new Date(isoDate);
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}

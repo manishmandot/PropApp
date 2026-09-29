@@ -18,7 +18,10 @@ insert into data.ingestion_runs (source, started_at, finished_at, status) values
 insert into data.observations (suburb_code, metric, period_start, period_granularity, value, source, source_geography) values
   ('10001', 'sales_count_house_12m', '2025-09-01', 'month', 60, 'nsw_vg_sales', 'SAL'),
   ('10001', 'sales_count_unit_12m', '2025-09-01', 'month', 10, 'nsw_vg_sales', 'SAL'),
-  ('10001', 'median_sale_price_house_12m', '2025-09-01', 'month', 1250000, 'nsw_vg_sales', 'SAL');
+  ('10001', 'median_sale_price_house_12m', '2025-09-01', 'month', 1250000, 'nsw_vg_sales', 'SAL'),
+  -- an insufficient suburb with a price: its page must still show no numbers
+  ('10003', 'sales_count_house_12m', '2025-09-01', 'month', 4, 'nsw_vg_sales', 'SAL'),
+  ('10003', 'median_sale_price_house_12m', '2025-09-01', 'month', 640000, 'nsw_vg_sales', 'SAL');
 
 insert into data.score_runs (id, model_version, as_of, started_at, finished_at, status, suburbs_scored) values
   (1, 'v1', '2025-11-01', now() - interval '31 days', now() - interval '31 days', 'success', 3),

@@ -7,6 +7,7 @@ import type { BacktestRow, FactorRow, Freshness, HistoryPoint, SuburbRow } from 
 // Dates come back as ISO strings so they serialise cleanly into pages.
 const SUBURB_COLUMNS = `sal_code, name, state, slug, propapp_score, fundamentals_score,
   market_score, coverage, top_drivers, watch_outs, as_of::text as as_of, median_price,
+  median_price_month::text as median_price_month,
   dwelling_type, gross_yield, population_growth_3y, supply_pressure, market_reason`;
 
 const ORDER_BY: Record<Filters["sort"], string> = {

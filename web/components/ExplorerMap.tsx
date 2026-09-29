@@ -5,6 +5,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { Protocol } from "pmtiles";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { basemapStyle } from "@/lib/basemap";
 import { BAND_LABELS, type Band } from "@/lib/bands";
 import { formatScore } from "@/lib/format";
 
@@ -40,18 +41,13 @@ export function ExplorerMap({ tilesUrl }: { tilesUrl: string }) {
       container: container.current,
       bounds: AUSTRALIA,
       style: {
-        version: 8,
+        ...basemapStyle(),
         sources: {
-          osm: {
-            type: "raster",
-            tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-            tileSize: 256,
-            attribution: "© OpenStreetMap contributors",
-          },
+          ...basemapStyle().sources,
           suburbs: { type: "vector", url: `pmtiles://${tilesUrl}` },
         },
         layers: [
-          { id: "osm", type: "raster", source: "osm", paint: { "raster-saturation": -0.8 } },
+          ...basemapStyle().layers,
           {
             id: "fill",
             type: "fill",

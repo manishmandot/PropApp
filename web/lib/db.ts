@@ -10,7 +10,13 @@ export function db(): Sql {
     const url = override ?? process.env.DATABASE_URL;
     if (!url) throw new Error("DATABASE_URL is not set");
     // prepare: false keeps it compatible with the Supabase transaction pooler.
-    client = postgres(url, { max: 5, prepare: false, idle_timeout: 20, onnotice: () => {} });
+    client = postgres(url, {
+      max: 5,
+      prepare: false,
+      idle_timeout: 20,
+      connect_timeout: 5,
+      onnotice: () => {},
+    });
   }
   return client;
 }

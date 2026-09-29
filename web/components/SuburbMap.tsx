@@ -3,20 +3,9 @@
 import type { Geometry } from "geojson";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { basemapStyle } from "@/lib/basemap";
 import { useEffect, useRef } from "react";
 
-const BASEMAP: maplibregl.StyleSpecification = {
-  version: 8,
-  sources: {
-    osm: {
-      type: "raster",
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      attribution: "© OpenStreetMap contributors",
-    },
-  },
-  layers: [{ id: "osm", type: "raster", source: "osm" }],
-};
 
 function bounds(geometry: Geometry): maplibregl.LngLatBoundsLike {
   const coords: number[][] = JSON.stringify(geometry)
@@ -34,7 +23,7 @@ export function SuburbMap({ geometry, label }: { geometry: Geometry; label: stri
     if (!container.current) return;
     const map = new maplibregl.Map({
       container: container.current,
-      style: BASEMAP,
+      style: basemapStyle(),
       bounds: bounds(geometry),
       fitBoundsOptions: { padding: 24 },
       cooperativeGestures: true,

@@ -63,11 +63,13 @@ class SupabaseRawStore:
         ).raise_for_status()
 
     def put_object(self, bucket: str, key: str, content: bytes,
-                   content_type: str = "application/octet-stream") -> None:
+                   content_type: str = "application/octet-stream",
+                   cache_seconds: int | None = None) -> None:
+        headers = {**self.headers, "x-upsert": "true", "content-type": content_type}
+        if cache_seconds is not None:
+            headers["cache-control"] = f"max-age={cache_seconds}"
         self.http.post(
-            f"{self.url}/storage/v1/object/{bucket}/{key}",
-            headers={**self.headers, "x-upsert": "true", "content-type": content_type},
-            content=content,
+            f"{self.url}/storage/v1/object/{bucket}/{key}", headers=headers, content=content,
         ).raise_for_status()
 
     def public_url(self, bucket: str, key: str) -> str:

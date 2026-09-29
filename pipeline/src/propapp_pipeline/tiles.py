@@ -4,6 +4,7 @@ Features carry only the 5-band score, so exact scores stay behind the server (wh
 limits apply later); the app fetches them on hover.
 """
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -14,6 +15,9 @@ from propapp_pipeline.raw_store import SupabaseRawStore
 
 TILES_BUCKET = "tiles"
 TILES_KEY = "suburbs.pmtiles"
+TILES_CACHE_SECONDS = 300
+# Supabase's default per-file upload limit; raise with TILES_MAX_BYTES after raising it there.
+MAX_TILES_BYTES = int(os.environ.get("TILES_MAX_BYTES", 50 * 1024 * 1024))
 SIMPLIFY_DEGREES = 0.0005
 TIPPECANOE_OPTIONS = ["-l", "suburbs", "-zg", "--coalesce-densest-as-needed",
                       "--extend-zooms-if-still-dropping", "--force"]
@@ -65,7 +69,17 @@ def build_pmtiles(geojson: Path, out: Path, run=subprocess.run) -> None:
 
 
 def upload_tiles(store: SupabaseRawStore, path: Path) -> str:
-    """Upload to the public `tiles` bucket; returns the file's public URL."""
+    """Upload to the public `tiles` bucket; returns the file's public URL.
+
+    The file is replaced in place, so it is served with a short cache lifetime: browsers
+    and the CDN pick up new tiles within minutes, and mixed old/new byte ranges are brief.
+    """
+    size = path.stat().st_size
+    if size > MAX_TILES_BYTES:
+        raise RuntimeError(
+            f"suburbs.pmtiles is {size / 1e6:.1f} MB, over the {MAX_TILES_BYTES / 1e6:.0f} MB "
+            "upload limit (TILES_MAX_BYTES); raise the Supabase upload limit and the setting")
     store.ensure_public_bucket(TILES_BUCKET)
-    store.put_object(TILES_BUCKET, TILES_KEY, path.read_bytes())
+    store.put_object(TILES_BUCKET, TILES_KEY, path.read_bytes(),
+                     cache_seconds=TILES_CACHE_SECONDS)
     return store.public_url(TILES_BUCKET, TILES_KEY)

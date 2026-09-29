@@ -29,13 +29,12 @@
     }
   },
   "include": [
+    "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next-e2e-empty/types/**/*.ts",
-    ".next-e2e/types/**/*.ts",
     ".next/types/**/*.ts",
-    "next-env.d.ts",
-    ".next-visual/types/**/*.ts"
+    ".next-e2e/types/**/*.ts",
+    ".next-e2e-empty/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

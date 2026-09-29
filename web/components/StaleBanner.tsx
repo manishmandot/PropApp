@@ -2,7 +2,13 @@ import { getFreshness } from "@/lib/queries";
 
 /** Warns on every page when a source is overdue (older than 1.5 × its usual cadence). */
 export async function StaleBanner() {
-  const stale = (await getFreshness()).filter((s) => s.is_stale);
+  let freshness;
+  try {
+    freshness = await getFreshness();
+  } catch {
+    return null; // a banner must never take the page down with it
+  }
+  const stale = freshness.filter((s) => s.is_stale);
   if (stale.length === 0) return null;
   return (
     <div

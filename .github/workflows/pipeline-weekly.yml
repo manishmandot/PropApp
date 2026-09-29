@@ -58,7 +58,7 @@ jobs:
       - run: uv sync --locked --no-dev
       - run: uv run python -m propapp_pipeline score
       # Map tiles carry score bands, so they are rebuilt after every scoring run.
-      - run: sudo apt-get install -y -q tippecanoe
+      - run: sudo apt-get update -q && sudo apt-get install -y -q tippecanoe
       - run: uv run python -m propapp_pipeline build-tiles
       - name: Refresh the website
         run: |

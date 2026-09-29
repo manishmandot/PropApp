@@ -31,6 +31,8 @@ To click around, create a database from `supabase/migrations/*.sql` plus
 | `REVALIDATE_SECRET` | Long random string; the pipeline sends it to refresh the site |
 | `NEXT_PUBLIC_TILES_URL` | Public URL of `suburbs.pmtiles`, printed by the pipeline's `build-tiles` |
 | `NEXT_PUBLIC_SITE_URL` | The site's canonical URL, e.g. `https://propapp.com.au` |
+| `NEXT_PUBLIC_BASEMAP_TILES` | Raster basemap tile URL (`{z}/{x}/{y}`); required before launch |
+| `NEXT_PUBLIC_BASEMAP_ATTRIBUTION` | Attribution text for that basemap |
 
 ## Deploying
 
@@ -58,5 +60,12 @@ To click around, create a database from `supabase/migrations/*.sql` plus
 
 - `api.suburbs` is a materialized view. The scoring run refreshes it, so a fresh
   `load-geo` shows new suburbs only after the next `score`.
-- The map uses OpenStreetMap's public tiles as the basemap, which is fine for low
-  traffic. At scale, switch to a hosted basemap per OpenStreetMap's tile usage policy.
+- **Before launch, set a hosted basemap.** Both maps default to OpenStreetMap's public
+  tiles, which the OpenStreetMap tile policy doesn't allow for a busy commercial site. Set
+  `NEXT_PUBLIC_BASEMAP_TILES` (a `{z}/{x}/{y}` raster URL from a provider such as
+  MapTiler or Stadia) and `NEXT_PUBLIC_BASEMAP_ATTRIBUTION`.
+- Map tiles are replaced in place and served with a 5-minute cache. `build-tiles` fails
+  clearly if the file exceeds `TILES_MAX_BYTES` (default 50 MB, Supabase's default
+  upload limit); raise both together.
+- Pages refresh hourly (so the out-of-date banner appears promptly), and immediately
+  after each scoring run.

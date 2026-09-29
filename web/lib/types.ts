@@ -17,6 +17,7 @@ export type SuburbRow = {
   watch_outs: string[];
   as_of: string | null;
   median_price: number | null;
+  median_price_month: string | null;
   dwelling_type: "house" | "unit" | null;
   gross_yield: number | null;
   population_growth_3y: number | null;

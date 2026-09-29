@@ -38,12 +38,18 @@ factors as (
     join latest l using (suburb_code, model_version, as_of)
     group by f.suburb_code
 ),
+-- Key figures follow the scoring engine's market window: months at least 3 months before
+-- the cutoff (recent NSW months are incomplete) and no more than 6 months old.
 latest_obs as (
-    select distinct on (suburb_code, metric) suburb_code, metric, value
-    from data.observations
-    where metric in ('sales_count_house_12m', 'sales_count_unit_12m',
-                     'median_sale_price_house_12m', 'median_sale_price_unit_12m')
-    order by suburb_code, metric, period_start desc, source
+    select distinct on (o.suburb_code, o.metric) o.suburb_code, o.metric, o.value,
+           o.period_start
+    from data.observations o
+    join latest l on l.suburb_code = o.suburb_code
+    where o.metric in ('sales_count_house_12m', 'sales_count_unit_12m',
+                       'median_sale_price_house_12m', 'median_sale_price_unit_12m')
+      and o.period_start <= date_trunc('month', l.cutoff) - interval '3 months'
+      and o.period_start >= date_trunc('month', l.cutoff) - interval '6 months'
+    order by o.suburb_code, o.metric, o.period_start desc, o.source
 ),
 dwelling as (
     select suburb_code,
@@ -74,6 +80,7 @@ select sub.sal_code,
        coalesce(l.watch_outs, '{}') as watch_outs,
        l.as_of,
        price.value as median_price,
+       price.period_start as median_price_month,
        d.dwelling_type,
        f.gross_yield,
        f.population_growth_3y,
@@ -93,6 +100,9 @@ left join latest_obs price
 left join states_with_market sm on sm.state = sub.state;
 
 create unique index suburbs_sal_code_idx on api.suburbs (sal_code);
+-- Supports the latest-observation lookup above (the primary key leads with source).
+create index if not exists observations_metric_suburb_period_idx
+    on data.observations (metric, suburb_code, period_start desc);
 create index suburbs_state_score_idx on api.suburbs (state, propapp_score desc nulls last);
 
 create view api.score_history as
@@ -133,6 +143,10 @@ select sal_code,
            as geojson
 from data.suburbs
 where geom is not null;
+
+-- Fail fast rather than hold connections when the database is struggling; role settings
+-- also apply through the transaction pooler.
+alter role web_reader set statement_timeout = '5s';
 
 grant usage on schema api to web_reader;
 grant usage on schema extensions to web_reader;

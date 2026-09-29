@@ -73,3 +73,26 @@ def test_freshness_flags_overdue_source(db_url):
                      (old, old, old, old))
     stale = dict(fetch(db_url, "select id, is_stale from api.source_freshness"))
     assert stale == {"fast": True, "slow": False, "never": True}
+
+
+def test_median_price_uses_scoring_window(scored):
+    # a partial recent month (inside the 3-month lag) must not replace the scored month
+    insert_observations(scored, [
+        ("10001", "median_sale_price_house_12m", date(2025, 11, 1), "month", 9_999_999,
+         "nsw_vg_sales"),
+        ("10001", "sales_count_house_12m", date(2025, 11, 1), "month", 5, "nsw_vg_sales"),
+        ("10002", "median_sale_price_house_12m", date(2023, 3, 1), "month", 700_000,
+         "nsw_vg_sales"),
+        ("10002", "sales_count_house_12m", date(2023, 3, 1), "month", 30, "nsw_vg_sales"),
+    ])
+    with connect(scored) as conn:
+        conn.execute("refresh materialized view api.suburbs")
+    rows = {r[0]: r[1:] for r in fetch(
+        scored, "select sal_code, median_price, median_price_month from api.suburbs")}
+    assert rows["10001"] == (1_100_000, date(2025, 9, 1))
+    assert rows["10002"] == (None, None)          # older than the 6-month market window
+
+
+def test_web_reader_statement_timeout(db_url):
+    [(config,)] = fetch(db_url, "select rolconfig from pg_roles where rolname = 'web_reader'")
+    assert "statement_timeout=5s" in config

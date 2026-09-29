@@ -7,6 +7,10 @@ import "./globals.css";
 
 const SITE_URL = siteUrl();
 
+// Hourly, so the out-of-date banner appears promptly even when scoring (which triggers
+// an immediate refresh) is what has stopped.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: "PropApp — suburb scores for Australian property investors", template: "%s" },

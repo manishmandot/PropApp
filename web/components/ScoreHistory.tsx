@@ -1,4 +1,4 @@
-import { formatDate, formatScore } from "@/lib/format";
+import { formatDate, formatMonth, formatScore } from "@/lib/format";
 import type { HistoryPoint } from "@/lib/types";
 
 const W = 560;
@@ -65,6 +65,4 @@ export function ScoreHistory({ points }: { points: HistoryPoint[] }) {
   );
 }
 
-function monthLabel(isoDate: string): string {
-  return new Date(isoDate).toLocaleDateString("en-AU", { month: "short", year: "numeric" });
-}
+const monthLabel = formatMonth;
