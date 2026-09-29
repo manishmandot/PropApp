@@ -78,3 +78,20 @@ def test_load_observations_roundtrip(db_url):
     assert len(obs) == 2 and states["10001"] == "NSW"
     rent = obs[obs.metric == "median_weekly_rent_all_q"].iloc[0]
     assert rent.period_end == pd.Timestamp("2025-06-30") and rent.value == 600
+
+
+def test_load_observations_only_scoring_metrics_as_categories(db_url):
+    with connect(db_url) as conn:
+        conn.execute("insert into data.suburbs (sal_code, name, state) values ('10001','A','NSW')")
+        conn.execute("""
+            insert into data.observations (suburb_code, metric, period_start,
+                period_granularity, value, source, source_geography)
+            values ('10001','population','2024-01-01','year',1000,'abs_erp','SA2'),
+                   ('10001','median_age','2021-01-01','year',38,'abs_census','SAL'),
+                   ('10001','bonds_lodged_q','2025-04-01','quarter',12,'nsw_rent','POA')
+        """)
+        conn.commit()
+        obs = load_observations(conn)
+    assert obs.metric.tolist() == ["population"]
+    assert str(obs.suburb_code.dtype) == "category" and str(obs.source.dtype) == "category"
+    assert obs.period_end.tolist() == [pd.Timestamp("2024-12-31")]

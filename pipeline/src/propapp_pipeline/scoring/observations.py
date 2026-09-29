@@ -19,23 +19,49 @@ def period_end(start: date, granularity: str) -> date:
     return add_months(start, MONTHS_IN[granularity]) - timedelta(days=1)
 
 
+# Only the metrics the factors read; everything else stays in the database.
+SCORING_METRICS = [
+    "population", "building_approvals_dwellings", "dwellings_total",
+    "median_household_income_weekly", "unemployed_count", "labour_force_count",
+    "owner_occupier_share",
+    *(f"sales_count_{t}_12m" for t in ("house", "unit")),
+    *(f"median_sale_price_{t}_{w}" for t in ("house", "unit") for w in ("12m", "3m")),
+    *(f"median_weekly_rent_{t}_q" for t in ("house", "unit", "all")),
+]
+CATEGORIES = ["suburb_code", "metric", "granularity", "source"]
+CHUNK_ROWS = 250_000
+
+
+def period_ends(starts: pd.Series, granularity: pd.Series) -> pd.Series:
+    """Last day of each period (vectorised `period_end`)."""
+    months = granularity.astype(str).map(MONTHS_IN).to_numpy()
+    index = starts.dt.year.to_numpy() * 12 + starts.dt.month.to_numpy() - 1 + months
+    following = pd.to_datetime({"year": index // 12, "month": index % 12 + 1, "day": 1})
+    return pd.Series(following.to_numpy(), index=starts.index) - pd.Timedelta(days=1)
+
+
 def load_observations(conn: psycopg.Connection) -> pd.DataFrame:
-    rows = conn.execute(
-        """
-        select suburb_code, metric, period_start, period_granularity,
-               (period_start + case period_granularity
-                   when 'month' then interval '1 month'
-                   when 'quarter' then interval '3 months'
-                   else interval '1 year' end - interval '1 day')::date,
-               value, source
-        from data.observations
-        """
-    ).fetchall()
-    df = pd.DataFrame(rows, columns=COLUMNS)
+    """Scoring metrics as a compact frame (category columns), streamed in chunks."""
+    chunks = []
+    with conn.transaction(), conn.cursor(name="scoring_observations") as cur:
+        cur.itersize = CHUNK_ROWS
+        cur.execute(
+            "select suburb_code, metric, period_start, period_granularity, value, source "
+            "from data.observations where metric = any(%s)", (SCORING_METRICS,))
+        while rows := cur.fetchmany(CHUNK_ROWS):
+            chunk = pd.DataFrame(rows, columns=[c for c in COLUMNS if c != "period_end"])
+            for column in CATEGORIES:
+                chunk[column] = chunk[column].astype("category")
+            chunks.append(chunk)
+    if not chunks:
+        return pd.DataFrame({c: pd.Series(dtype=object) for c in COLUMNS})
+    df = pd.concat(chunks, ignore_index=True)
+    for column in CATEGORIES:  # concat of differing categories falls back to object
+        df[column] = df[column].astype("category")
     df["period_start"] = pd.to_datetime(df["period_start"])
-    df["period_end"] = pd.to_datetime(df["period_end"])
     df["value"] = df["value"].astype(float)
-    return df
+    df["period_end"] = period_ends(df["period_start"], df["granularity"])
+    return df[COLUMNS]
 
 
 def load_suburb_states(conn: psycopg.Connection) -> pd.Series:
@@ -43,14 +69,20 @@ def load_suburb_states(conn: psycopg.Connection) -> pd.Series:
     return pd.Series(dict(rows), name="state", dtype=object)
 
 
-def as_of_view(obs: pd.DataFrame, as_of: date, census_fixed: bool = False) -> pd.DataFrame:
+def as_of_view(obs: pd.DataFrame, as_of: date, census_fixed: bool = False,
+               release_lags: dict[str, int] | None = None) -> pd.DataFrame:
     """Observations usable at `as_of`: periods ending on or before it.
 
     `census_fixed` (backtest only) also admits every abs_census row, since the 2021 Census
     is the only one loaded. Where two sources report the same suburb, metric and period,
-    the alphabetically first source is kept so results are deterministic.
+    the alphabetically first source is kept so results are deterministic. `release_lags`
+    (backtest only) delays each source's periods by its publication lag in months.
     """
-    usable = obs["period_end"] <= pd.Timestamp(as_of)
+    cutoff = pd.Series(pd.Timestamp(as_of), index=obs.index)
+    for source, months in (release_lags or {}).items():
+        cutoff = cutoff.mask(obs["source"] == source,
+                             pd.Timestamp(as_of) - pd.DateOffset(months=months))
+    usable = obs["period_end"] <= cutoff
     if census_fixed:
         usable |= obs["source"] == "abs_census"
     view = obs[usable].sort_values([*KEY, "source"])

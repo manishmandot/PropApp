@@ -81,12 +81,19 @@ def test_backtest_does_not_write_scores(seeded, tmp_path):
     assert report.model_version == "v1" and "Census" in text and "late lodgements" in text
 
 
-def test_backtest_tuning_writes_next_version(seeded, tmp_path):
-    (tmp_path / "v1.yaml").write_text((WEIGHTS_DIR / "v1.yaml").read_text())
-    report = run_backtest(seeded, 2025, 2025, 2026, W, tune_samples=3,
-                          reports_dir=tmp_path, weights_dir=tmp_path)
-    assert report.model_version == "v2"
-    assert load_weights(tmp_path / "v2.yaml").model_version == "v2"
+def test_tune_finds_better_weights(tmp_path):
+    from propapp_pipeline.scoring.backtest import Prepared
+    from propapp_pipeline.scoring.factors import FUNDAMENTALS
+
+    (tmp_path / "v1.yaml").write_text("")
+    ranks = pd.Series(range(30), index=[f"s{i}" for i in range(30)], dtype=float)
+    pct = pd.DataFrame({f: (ranks if f == "population_growth_3y" else 29 - ranks) * 100 / 29
+                        for f in FUNDAMENTALS})
+    p = Prepared(date(2020, 6, 30), pct, pd.DataFrame(), {12: ranks, 24: ranks}, 0.0)
+    tuned = tune([p], W, samples=400, seed=1, weights_dir=tmp_path)
+    assert tuned.model_version == "v2" and tuned is not W
+    assert tuned.fundamentals["population_growth_3y"] > W.fundamentals["population_growth_3y"]
+    assert tuned.market == W.market
 
 
 def test_cli_backtest(seeded, tmp_path, monkeypatch):
@@ -100,3 +107,51 @@ def test_cli_backtest(seeded, tmp_path, monkeypatch):
     assert main(["backtest", "--years", "2025", "--holdout-from", "2025",
                  "--weights", "v1"]) == 0
     assert (tmp_path / "v1-backtest.md").exists()
+
+
+# --- review fixes ---------------------------------------------------------------------
+
+def _no_market(prepared):
+    return [replace_market(p) for p in prepared]
+
+
+def replace_market(p):
+    from dataclasses import replace as dc_replace
+    return dc_replace(p, pct_market=p.pct_market.iloc[0:0])
+
+
+def test_tune_keeps_market_weights_without_market_coverage(tmp_path):
+    prepared = _no_market(prepare(frame(SEED_ROWS), STATES, [date(2025, 12, 31)], W))
+    tuned = tune(prepared, W, samples=20, seed=3, weights_dir=tmp_path)
+    assert tuned.market == W.market
+
+
+def test_market_coverage_recorded():
+    [p] = prepare(frame(SEED_ROWS), STATES, [date(2025, 12, 31)], W)
+    assert p.market_coverage == pytest.approx(1 / 2)   # 10001 of the 2 NSW suburbs scored
+
+
+def test_training_dates_embargoed_before_holdout():
+    from propapp_pipeline.scoring.backtest import training_dates
+    dates = backtest_dates(2020, 2021)
+    assert training_dates(dates, 2022, 12) == [date(2020, 6, 30), date(2020, 12, 31)]
+    assert training_dates(dates, 2022, 24) == []
+
+
+def test_backtest_view_applies_release_lags():
+    from propapp_pipeline.scoring.backtest import backtest_view
+    obs = frame([yearly("10001", "population", 2019, 1000, "abs_erp")])
+    assert backtest_view(obs, date(2020, 1, 31)).empty
+    assert len(backtest_view(obs, date(2020, 4, 30))) == 1
+
+
+def test_tuned_report_shows_baseline_and_skips_identical_version(seeded, tmp_path):
+    (tmp_path / "v1.yaml").write_text((WEIGHTS_DIR / "v1.yaml").read_text())
+    report = run_backtest(seeded, 2025, 2025, 2026, W, tune_samples=3,
+                          reports_dir=tmp_path, weights_dir=tmp_path)
+    versions = {r["model_version"] for r in report.rows}
+    if report.model_version == "v1":           # starting weights won: nothing new written
+        assert not (tmp_path / "v2.yaml").exists()
+    else:
+        assert versions == {"v1", report.model_version}
+        assert "v1" in (tmp_path / f"{report.model_version}-backtest.md").read_text()

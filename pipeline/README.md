@@ -112,6 +112,23 @@ have loaded:
    is positive and better than v1's, commit `weights/v2.yaml` (and the report). The next
    scheduled `score` then uses v2.
 
+The backtest only uses data once it would have been published (fixed release lags per
+source), and training dates whose outcome window reaches into the held-out years are
+left out. A `--tune` run reports the starting weights next to the tuned ones and writes
+no new version when the starting weights win. It also reports market-layer coverage;
+without NSW rent history the market layer is missing for almost every backtest suburb, so
+market weights are not tuned and the results validate the fundamentals layer only.
+
+### Known launch gap: market history builds up slowly
+
+Two market sources load only their current release: VIC Valuer-General medians (one
+quarter per file) and NSW rents (one quarter per file). Price growth and sales-volume
+change need the value from 12 months earlier, and rent growth needs rent from a year
+earlier. So at launch, VIC suburbs show **Fundamentals only** for about five quarters,
+and NSW rent growth is missing for four quarters. Thinner NSW suburbs may also drop to
+Fundamentals only. Backfilling the publishers' archived quarterly files would close the
+gap sooner; it isn't built yet.
+
 Results are also stored in `data.backtest_results`. The report lists the known
 limitations: the fixed 2021 Census, data revisions, and NSW late lodgements.
 
