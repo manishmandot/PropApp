@@ -86,3 +86,12 @@ sources:
     attribution: "Source: Valuer-General Victoria, property sales statistics"
     commercial_use: pending
     cadence_days: 92
+
+  vic_dffh_rental:
+    name: Victorian DFFH Rental Report — moving annual rents by suburb
+    page_url: https://www.dffh.vic.gov.au/publications/rental-report
+    link_pattern: (?i)moving-annual-rents?-by-suburb.*\.xlsx$
+    licence: CC BY 4.0
+    attribution: "Source: Department of Families, Fairness and Housing (Victoria), Rental Report"
+    commercial_use: pending
+    cadence_days: 92

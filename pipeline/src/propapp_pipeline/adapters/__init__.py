@@ -6,5 +6,6 @@ from propapp_pipeline.adapters import (  # noqa: F401
     jsa_salm,
     nsw_rent,
     nsw_vg_sales,
+    vic_dffh_rental,
     vic_vg_medians,
 )
