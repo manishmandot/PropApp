@@ -21,11 +21,15 @@ def make_client() -> httpx.Client:
 
 
 def download(
-    http: httpx.Client, url: str, *, sleep: Callable[[float], None] = time.sleep
+    http: httpx.Client,
+    url: str,
+    *,
+    headers: dict[str, str] | None = None,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> bytes:
     """GET a URL, retrying 5xx responses with backoff; raises on any other non-2xx."""
     for delay in (*BACKOFF_SECONDS, None):
-        response = http.get(url)
+        response = http.get(url, headers=headers)
         if response.status_code < 500 or delay is None:
             response.raise_for_status()
             return response.content

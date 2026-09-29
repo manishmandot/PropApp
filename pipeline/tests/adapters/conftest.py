@@ -33,8 +33,9 @@ def xlsx_bytes(sheets: dict[str, list[list]]) -> bytes:
     return buf.getvalue()
 
 
-def by(result, code, metric):
-    return next(o for o in result.observations if o.suburb_code == code and o.metric == metric)
+def by(result, code, metric, period=None):
+    return next(o for o in result.observations if o.suburb_code == code and o.metric == metric
+                and (period is None or o.period == period))
 
 
 @pytest.fixture
