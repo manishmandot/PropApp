@@ -17,6 +17,7 @@ from propapp_pipeline.scoring.backtest import run_backtest
 from propapp_pipeline.scoring.engine import run_scoring
 from propapp_pipeline.scoring.weights import WEIGHTS_DIR, latest_weights_path, load_weights
 from propapp_pipeline.sources import DEFAULT_CONFIG, load_config
+from propapp_pipeline.tiles import build_pmtiles, export_geojson, upload_tiles
 
 MB = "MB_CODE_2021"
 
@@ -30,6 +31,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     run.add_argument("--years", help="year range for backfills, e.g. 2015-2025")
     run.add_argument("--option", action="append", default=[], metavar="KEY=VALUE")
     sub.add_parser("load-geo", help="load SAL suburbs and mesh-block correspondences")
+    sub.add_parser("build-tiles", help="build and upload the suburb map tiles")
     score = sub.add_parser("score", help="score every suburb and store this month's snapshot")
     score.add_argument("--cutoff", type=date.fromisoformat, default=date.today(),
                        help="use data with periods ending on or before this date")
@@ -105,6 +107,19 @@ def _load_geo(settings: Settings, config: dict) -> None:
             print(f"correspondences built: {build_correspondences(conn, allocation, counts)}")
 
 
+def _build_tiles(settings: Settings) -> int:
+    with tempfile.TemporaryDirectory() as tmp:
+        geojson, pmtiles = Path(tmp) / "suburbs.geojsonl", Path(tmp) / "suburbs.pmtiles"
+        with connect(settings.database_url) as conn:
+            count = export_geojson(conn, geojson)
+        build_pmtiles(geojson, pmtiles)
+        store = SupabaseRawStore(settings.supabase_url, settings.supabase_service_role_key,
+                                 make_client())
+        url = upload_tiles(store, pmtiles)
+    print(f"tiles for {count} suburbs uploaded to {url}")
+    return 0
+
+
 def main(argv: list[str] | None = None, *, raw_store: RawStore | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     args = _parse_args(sys.argv[1:] if argv is None else argv)
@@ -117,6 +132,8 @@ def main(argv: list[str] | None = None, *, raw_store: RawStore | None = None) ->
     if args.command == "load-geo":
         _load_geo(settings, config)
         return 0
+    if args.command == "build-tiles":
+        return _build_tiles(settings)
     http = make_client()
     if raw_store is None:
         supabase = SupabaseRawStore(settings.supabase_url, settings.supabase_service_role_key, http)
