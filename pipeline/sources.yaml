@@ -40,7 +40,7 @@ sources:
     name: ABS Building Approvals by SA2 (monthly)
     # Find the SA2 building approvals dataflow in https://data.api.abs.gov.au/rest/dataflow/ABS
     # and set the filters to: dwelling units, total sector, total residential, original series.
-    url: https://data.api.abs.gov.au/rest/data/ABS,BA_SA2,1.0.0/all?startPeriod=2019-01
+    url: https://data.api.abs.gov.au/rest/data/ABS,BA_SA2,1.0.0/all?startPeriod=2014-01
     region_column: REGION
     filters: {MEASURE: "1", SECTOR: "9", BUILDING_TYPE: "100", REGION_TYPE: SA2, TSEST: "10"}
     licence: CC BY 4.0

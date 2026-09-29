@@ -88,6 +88,33 @@ GitHub emails the repository owner when a scheduled job fails. Look at the job l
 
 The previous data stays live until a run succeeds.
 
+## Scoring
+
+`python -m propapp_pipeline score` scores every suburb from the loaded observations
+(spec §5) and stores this month's snapshot in `data.scores` (factor detail in
+`data.score_factors`, kept for the latest snapshot only). Every run is logged in
+`data.score_runs`. The weekly and monthly workflows run it automatically after
+ingestion; run it by hand from **pipeline-manual** with `score` (or
+`score --cutoff 2025-12-31`).
+
+Weights live in `scoring/weights/v<N>.yaml`; the newest version is used unless
+`--weights` says otherwise. `v1` holds starting weights that no backtest has checked yet.
+
+### First backtest
+
+After the NSW sales backfill (`run nsw_vg_sales --years 2015-2025`) and the ABS sources
+have loaded:
+
+1. Run **pipeline-manual** with `backtest --years 2016-2024 --holdout-from 2022 --tune 200`.
+2. Download the `scoring-output` artifact from the run. It holds
+   `reports/v2-backtest.md` and the tuned `weights/v2.yaml`.
+3. Read the report. Quote only the held-out rows. If the held-out 12-month Spearman
+   is positive and better than v1's, commit `weights/v2.yaml` (and the report). The next
+   scheduled `score` then uses v2.
+
+Results are also stored in `data.backtest_results`. The report lists the known
+limitations: the fixed 2021 Census, data revisions, and NSW late lodgements.
+
 ## Before public launch
 
 Every source except the ABS ones has `commercial_use: pending` in `sources.yaml`. Confirm
