@@ -95,3 +95,40 @@ def build_correspondences(
                                 float(r.weight), float(r.ratio)))
     conn.commit()
     return len(rows)
+
+
+def read_abs_table(content: bytes, filename: str, header: str) -> pd.DataFrame:
+    """Read an ABS CSV/XLSX (optionally zipped) into one frame of strings.
+
+    XLSX tables may span several sheets with title rows above the header; every sheet
+    containing `header` is read from its header row and the sheets are concatenated.
+    """
+    import io
+    import zipfile
+
+    from propapp_pipeline.parsing import SourceLayoutError, find_header_row
+
+    name = filename.lower()
+    if name.endswith(".zip"):
+        with zipfile.ZipFile(io.BytesIO(content)) as z:
+            inner = [n for n in z.namelist() if n.lower().endswith((".csv", ".xlsx"))]
+            if len(inner) != 1:
+                raise SourceLayoutError(f"{filename}: expected one table file, found {inner}")
+            return read_abs_table(z.read(inner[0]), inner[0], header)
+    if name.endswith(".csv"):
+        return pd.read_csv(io.BytesIO(content), dtype=str)
+    frames = []
+    for sheet in pd.read_excel(io.BytesIO(content), sheet_name=None, header=None,
+                               dtype=object).values():
+        try:
+            start = find_header_row(sheet, header)
+        except SourceLayoutError:
+            continue
+        body = sheet.iloc[start + 1:].copy()
+        body.columns = [str(c).strip() for c in sheet.iloc[start]]
+        frames.append(body.dropna(subset=[header]))
+    if not frames:
+        raise SourceLayoutError(f"{filename}: no sheet with header {header!r}")
+    df = pd.concat(frames, ignore_index=True)
+    df[header] = df[header].astype(str)
+    return df

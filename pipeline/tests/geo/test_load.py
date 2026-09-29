@@ -49,3 +49,37 @@ def test_rebuild_replaces_rows(loaded, mb_frames):
         build_correspondences(conn, *mb_frames)
         n = conn.execute("select count(*) from data.geo_correspondences").fetchone()[0]
     assert n == 8
+
+
+def test_read_abs_table_concatenates_sheets(tmp_path):
+    import io
+
+    import pandas as pd
+
+    from propapp_pipeline.geo.load import read_abs_table
+
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf) as xl:
+        pd.DataFrame([["Mesh Block Counts, 2021", None], [None, None],
+                      ["MB_CODE_2021", "Person"], ["1", 300]]).to_excel(
+            xl, sheet_name="Table 1", header=False, index=False)
+        pd.DataFrame([["MB_CODE_2021", "Person"], ["2", 100]]).to_excel(
+            xl, sheet_name="Table 2", header=False, index=False)
+        pd.DataFrame([["Explanatory notes"]]).to_excel(
+            xl, sheet_name="Notes", header=False, index=False)
+    df = read_abs_table(buf.getvalue(), "counts.xlsx", "MB_CODE_2021")
+    assert df["MB_CODE_2021"].tolist() == ["1", "2"]
+    assert df["Person"].tolist() == [300, 100]
+
+
+def test_read_abs_table_csv_in_zip():
+    import io
+    import zipfile
+
+    from propapp_pipeline.geo.load import read_abs_table
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("SAL_2021_AUST.csv", "MB_CODE_2021,SAL_CODE_2021\n10000010000,10001\n")
+    df = read_abs_table(buf.getvalue(), "SAL_2021_AUST.zip", "MB_CODE_2021")
+    assert df.to_dict("records") == [{"MB_CODE_2021": "10000010000", "SAL_CODE_2021": "10001"}]

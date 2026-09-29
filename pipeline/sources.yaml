@@ -1,0 +1,18 @@
+# Source configuration for the PropApp data pipeline.
+#
+# `geo` holds the ABS files `load-geo` uses to build the suburb spine.
+# `sources` has one entry per adapter id. `commercial_use` must be confirmed for every
+# source before public launch (spec §4.5).
+
+geo:
+  # ABS ASGS Edition 3 (2021). Landing pages:
+  # https://www.abs.gov.au/statistics/standards/australian-statistical-geography-standard-asgs-edition-3/jul2021-jun2026/access-and-downloads/digital-boundary-files
+  # https://www.abs.gov.au/statistics/standards/australian-statistical-geography-standard-asgs-edition-3/jul2021-jun2026/access-and-downloads/allocation-files
+  # https://www.abs.gov.au/census/guide-census-data/mesh-block-counts/latest-release
+  sal_boundaries_url: https://www.abs.gov.au/statistics/standards/australian-statistical-geography-standard-asgs-edition-3/jul2021-jun2026/access-and-downloads/digital-boundary-files/SAL_2021_AUST_GDA2020_SHP.zip
+  mb_allocation_url: https://www.abs.gov.au/statistics/standards/australian-statistical-geography-standard-asgs-edition-3/jul2021-jun2026/access-and-downloads/allocation-files/MB_2021_AUST.xlsx
+  sal_allocation_url: https://www.abs.gov.au/statistics/standards/australian-statistical-geography-standard-asgs-edition-3/jul2021-jun2026/access-and-downloads/allocation-files/SAL_2021_AUST.xlsx
+  poa_allocation_url: https://www.abs.gov.au/statistics/standards/australian-statistical-geography-standard-asgs-edition-3/jul2021-jun2026/access-and-downloads/allocation-files/POA_2021_AUST.xlsx
+  mb_counts_url: https://www.abs.gov.au/census/guide-census-data/mesh-block-counts/latest-release/2021%20Census_Mesh%20Block%20Counts.xlsx
+
+sources: {}
