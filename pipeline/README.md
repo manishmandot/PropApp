@@ -1,0 +1,82 @@
+# PropApp data pipeline
+
+Ingests the v1 public data sources into Supabase Postgres, normalised to ABS Suburbs and
+Localities (SAL). Design: `docs/superpowers/specs/2026-09-29-propapp-design.md` §4.
+Plan: `docs/superpowers/plans/2026-09-29-data-pipeline.md`.
+
+## How it works
+
+Each source is an adapter in `src/propapp_pipeline/adapters/` with three steps:
+`fetch` (download), `parse` (read the file) and `normalise` (turn rows into suburb
+observations). `run_source` stores every raw file unchanged in the private Storage bucket
+`raw`, converts SA2/postcode data to suburbs using mesh-block correspondences, runs the
+quality checks, and upserts into `data.observations` in one transaction. Every run is
+logged in `data.ingestion_runs`. Source URLs, licences and cadences live in `sources.yaml`.
+
+Quality checks: row count within ±25% of the last successful run (skipped for
+`nsw_vg_sales`, whose output size depends on which months a batch touches), at least 98%
+of rows matched to a suburb, and every value inside its metric's range. A failed check
+keeps the previous data live and exits with code 1.
+
+## Running tests locally
+
+```bash
+docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgis/postgis:16-3.4
+cd pipeline
+uv sync
+uv run ruff check
+uv run pytest            # uses TEST_DATABASE_URL, default postgresql://postgres:postgres@localhost:5432/postgres
+```
+
+## Secrets
+
+Set these as GitHub repository secrets (and as environment variables to run locally):
+
+| Name | Value |
+|---|---|
+| `DATABASE_URL` | Supabase Postgres connection string (session pooler or direct) |
+| `SUPABASE_URL` | `https://<project-ref>.supabase.co` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key (Storage writes); never commit it |
+
+## First deployment
+
+1. Create the Supabase project.
+2. Apply migrations: `supabase link --project-ref <ref> && supabase db push`.
+3. Set the three secrets above.
+4. Run the **pipeline-manual** workflow with each command below, in order:
+   1. `load-geo`: loads suburbs and builds the SA2/postcode correspondences.
+   2. `run abs_census`
+   3. `run nsw_vg_sales --years 2015-2025`: sales history for the scoring backtest. This
+      is long, so run it a few years at a time if it approaches the 3-hour job limit.
+   4. `run abs_erp`, `run abs_building_approvals`, `run jsa_salm`, `run nsw_rent`,
+      `run vic_vg_medians`, `run vic_dffh_rental`
+5. From then on, **pipeline-weekly** (NSW sales, Tuesdays 06:17 AEST) and
+   **pipeline-monthly** (everything else, on the 3rd) run automatically. The Census
+   only changes every five years, so it runs by hand.
+
+The source URLs and file layouts in `sources.yaml` and the parsers were written from
+the publishers' documented formats without access to the live files. Expect the first
+run of each source to confirm or correct them.
+
+## When a run fails
+
+GitHub emails the repository owner when a scheduled job fails. Look at the job log and at
+`data.ingestion_runs.error`:
+
+- **`SourceLayoutError`**: the publisher changed a column, sheet or link. Update the
+  parser or the `link_pattern`/`url` in `sources.yaml`, add a test fixture in the new
+  layout, and re-run.
+- **`QualityError: row count …`**: the output size moved more than ±25%. Check whether
+  the source really changed (for example, a new geography) before loosening
+  `row_count_tolerance` on that adapter.
+- **`QualityError: match rate …`**: too many rows didn't match a suburb. The log names
+  the counts; usually new or renamed localities.
+- **HTTP errors**: 5xx responses are retried automatically, so check whether the URL
+  has moved.
+
+The previous data stays live until a run succeeds.
+
+## Before public launch
+
+Every source except the ABS ones has `commercial_use: pending` in `sources.yaml`. Confirm
+each licence allows commercial use and set it to `confirmed` (spec §4.5).

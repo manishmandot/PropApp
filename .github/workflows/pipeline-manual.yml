@@ -1,0 +1,30 @@
+name: pipeline-manual
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "Pipeline command, e.g. 'run abs_census', 'run nsw_vg_sales --years 2015-2025', 'load-geo'"
+        required: true
+        type: string
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: pipeline
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      COMMAND: ${{ inputs.command }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked --no-dev
+      # COMMAND is split into arguments on purpose.
+      - run: uv run python -m propapp_pipeline $COMMAND
