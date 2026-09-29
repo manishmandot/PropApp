@@ -15,4 +15,12 @@ geo:
   poa_allocation_url: https://www.abs.gov.au/statistics/standards/australian-statistical-geography-standard-asgs-edition-3/jul2021-jun2026/access-and-downloads/allocation-files/POA_2021_AUST.xlsx
   mb_counts_url: https://www.abs.gov.au/census/guide-census-data/mesh-block-counts/latest-release/2021%20Census_Mesh%20Block%20Counts.xlsx
 
-sources: {}
+sources:
+  abs_census:
+    name: ABS Census 2021 General Community Profile (Suburbs and Localities)
+    # From https://www.abs.gov.au/census/find-census-data/datapacks (2021, GCP, SAL, short header)
+    url: https://www.abs.gov.au/census/find-census-data/datapacks/download/2021_GCP_SAL_for_AUS_short-header.zip
+    licence: CC BY 4.0
+    attribution: "Source: Australian Bureau of Statistics, Census of Population and Housing 2021"
+    commercial_use: confirmed
+    cadence_days: 1826
