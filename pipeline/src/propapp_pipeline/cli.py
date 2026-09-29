@@ -13,6 +13,8 @@ from propapp_pipeline.geo.load import build_correspondences, load_suburbs, read_
 from propapp_pipeline.http import download, make_client
 from propapp_pipeline.raw_store import RawStore, SupabaseRawStore
 from propapp_pipeline.runner import run_source
+from propapp_pipeline.scoring.engine import run_scoring
+from propapp_pipeline.scoring.weights import WEIGHTS_DIR, latest_weights_path, load_weights
 from propapp_pipeline.sources import DEFAULT_CONFIG, load_config
 
 MB = "MB_CODE_2021"
@@ -27,7 +29,28 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     run.add_argument("--years", help="year range for backfills, e.g. 2015-2025")
     run.add_argument("--option", action="append", default=[], metavar="KEY=VALUE")
     sub.add_parser("load-geo", help="load SAL suburbs and mesh-block correspondences")
+    score = sub.add_parser("score", help="score every suburb and store this month's snapshot")
+    score.add_argument("--cutoff", type=date.fromisoformat, default=date.today(),
+                       help="use data with periods ending on or before this date")
+    score.add_argument("--weights", help="weights version, e.g. v1 (default: newest)")
     return parser.parse_args(argv)
+
+
+def _weights(version: str | None):
+    path = WEIGHTS_DIR / f"{version}.yaml" if version else latest_weights_path()
+    return load_weights(path)
+
+
+def _score(args: argparse.Namespace) -> int:
+    settings = Settings.database_only()
+    weights = _weights(args.weights)
+    try:
+        n = run_scoring(settings.database_url, args.cutoff, weights)
+    except Exception:
+        logging.getLogger(__name__).exception("scoring failed")
+        return 1
+    print(f"scored {n} suburbs with {weights.model_version} (cutoff {args.cutoff})")
+    return 0
 
 
 def _options(args: argparse.Namespace) -> dict[str, str]:
@@ -65,6 +88,8 @@ def _load_geo(settings: Settings, config: dict) -> None:
 def main(argv: list[str] | None = None, *, raw_store: RawStore | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     args = _parse_args(sys.argv[1:] if argv is None else argv)
+    if args.command == "score":
+        return _score(args)
     settings = Settings.from_env()
     config = load_config(args.config)
     if args.command == "load-geo":
