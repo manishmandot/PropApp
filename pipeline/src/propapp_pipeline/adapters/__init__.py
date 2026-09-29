@@ -3,4 +3,5 @@ from propapp_pipeline.adapters import (  # noqa: F401
     abs_building_approvals,
     abs_census,
     abs_erp,
+    jsa_salm,
 )

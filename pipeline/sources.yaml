@@ -47,3 +47,12 @@ sources:
     attribution: "Source: Australian Bureau of Statistics, Building Approvals, Australia"
     commercial_use: confirmed
     cadence_days: 31
+
+  jsa_salm:
+    name: Jobs and Skills Australia Small Area Labour Markets (smoothed SA2, ASGS 2021)
+    page_url: https://www.jobsandskills.gov.au/data/small-area-labour-markets
+    link_pattern: (?i)salm.*smoothed.*sa2.*\.xlsx$
+    licence: CC BY 4.0
+    attribution: "Source: Jobs and Skills Australia, Small Area Labour Markets"
+    commercial_use: pending
+    cadence_days: 92
