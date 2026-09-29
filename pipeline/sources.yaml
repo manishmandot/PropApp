@@ -1,0 +1,97 @@
+# Source configuration for the PropApp data pipeline.
+#
+# `geo` holds the ABS files `load-geo` uses to build the suburb spine.
+# `sources` has one entry per adapter id. `commercial_use` must be confirmed for every
+# source before public launch (spec §4.5).
+
+geo:
+  # ABS ASGS Edition 3 (2021). Landing pages:
+  # https://www.abs.gov.au/statistics/standards/australian-statistical-geography-standard-asgs-edition-3/jul2021-jun2026/access-and-downloads/digital-boundary-files
+  # https://www.abs.gov.au/statistics/standards/australian-statistical-geography-standard-asgs-edition-3/jul2021-jun2026/access-and-downloads/allocation-files
+  # https://www.abs.gov.au/census/guide-census-data/mesh-block-counts/latest-release
+  sal_boundaries_url: https://www.abs.gov.au/statistics/standards/australian-statistical-geography-standard-asgs-edition-3/jul2021-jun2026/access-and-downloads/digital-boundary-files/SAL_2021_AUST_GDA2020_SHP.zip
+  mb_allocation_url: https://www.abs.gov.au/statistics/standards/australian-statistical-geography-standard-asgs-edition-3/jul2021-jun2026/access-and-downloads/allocation-files/MB_2021_AUST.xlsx
+  sal_allocation_url: https://www.abs.gov.au/statistics/standards/australian-statistical-geography-standard-asgs-edition-3/jul2021-jun2026/access-and-downloads/allocation-files/SAL_2021_AUST.xlsx
+  poa_allocation_url: https://www.abs.gov.au/statistics/standards/australian-statistical-geography-standard-asgs-edition-3/jul2021-jun2026/access-and-downloads/allocation-files/POA_2021_AUST.xlsx
+  mb_counts_url: https://www.abs.gov.au/census/guide-census-data/mesh-block-counts/latest-release/2021%20Census_Mesh%20Block%20Counts.xlsx
+
+sources:
+  abs_census:
+    name: ABS Census 2021 General Community Profile (Suburbs and Localities)
+    # From https://www.abs.gov.au/census/find-census-data/datapacks (2021, GCP, SAL, short header)
+    url: https://www.abs.gov.au/census/find-census-data/datapacks/download/2021_GCP_SAL_for_AUS_short-header.zip
+    licence: CC BY 4.0
+    attribution: "Source: Australian Bureau of Statistics, Census of Population and Housing 2021"
+    commercial_use: confirmed
+    cadence_days: 1826
+
+  abs_erp:
+    name: ABS Regional Population — Estimated Resident Population by SA2
+    # Dataflow structure: https://data.api.abs.gov.au/rest/dataflow/ABS/ABS_ANNUAL_ERP_ASGS2021?references=all
+    url: https://data.api.abs.gov.au/rest/data/ABS,ABS_ANNUAL_ERP_ASGS2021,1.0.0/ERP.SA2..A?startPeriod=2011
+    region_column: ASGS_2021
+    filters: {MEASURE: ERP, REGION_TYPE: SA2}
+    licence: CC BY 4.0
+    attribution: "Source: Australian Bureau of Statistics, Regional Population"
+    commercial_use: confirmed
+    cadence_days: 365
+
+  abs_building_approvals:
+    name: ABS Building Approvals by SA2 (monthly)
+    # Find the SA2 building approvals dataflow in https://data.api.abs.gov.au/rest/dataflow/ABS
+    # and set the filters to: dwelling units, total sector, total residential, original series.
+    url: https://data.api.abs.gov.au/rest/data/ABS,BA_SA2,1.0.0/all?startPeriod=2019-01
+    region_column: REGION
+    filters: {MEASURE: "1", SECTOR: "9", BUILDING_TYPE: "100", REGION_TYPE: SA2, TSEST: "10"}
+    licence: CC BY 4.0
+    attribution: "Source: Australian Bureau of Statistics, Building Approvals, Australia"
+    commercial_use: confirmed
+    cadence_days: 31
+
+  jsa_salm:
+    name: Jobs and Skills Australia Small Area Labour Markets (smoothed SA2, ASGS 2021)
+    page_url: https://www.jobsandskills.gov.au/data/small-area-labour-markets
+    link_pattern: (?i)salm.*smoothed.*sa2.*\.xlsx$
+    licence: CC BY 4.0
+    attribution: "Source: Jobs and Skills Australia, Small Area Labour Markets"
+    commercial_use: pending
+    cadence_days: 92
+
+  nsw_vg_sales:
+    name: NSW Valuer General bulk property sales information
+    # Bulk data page: https://valuation.property.nsw.gov.au/embed/propertySalesInformation
+    url: https://valuation.property.nsw.gov.au/embed/propertySalesInformation
+    weekly_url_template: https://www.valuergeneral.nsw.gov.au/__psi/weekly/{date:%Y%m%d}.zip
+    yearly_url_template: https://www.valuergeneral.nsw.gov.au/__psi/yearly/{year}.zip
+    licence: NSW Valuer General bulk sales data terms of use
+    attribution: "Contains property sales information provided under licence from the Valuer General NSW"
+    commercial_use: pending
+    cadence_days: 7
+
+  nsw_rent:
+    name: NSW Rent and Sales Report — rent tables (new bonds by postcode)
+    page_url: https://dcj.nsw.gov.au/about-us/families-and-communities-statistics/housing-rent-and-sales/rent-and-sales-report.html
+    link_pattern: (?i)rent-tables.*\.xlsx$
+    licence: CC BY 4.0
+    attribution: "Source: NSW Department of Communities and Justice, Rent and Sales Report"
+    commercial_use: pending
+    cadence_days: 92
+
+  vic_vg_medians:
+    name: Victorian Valuer-General property sales statistics (median prices by suburb)
+    page_url: https://www.land.vic.gov.au/valuations/resources-and-reports/property-sales-statistics
+    house_link_pattern: (?i)house.*suburb.*\.xlsx?$
+    unit_link_pattern: (?i)unit.*suburb.*\.xlsx?$
+    licence: CC BY 4.0
+    attribution: "Source: Valuer-General Victoria, property sales statistics"
+    commercial_use: pending
+    cadence_days: 92
+
+  vic_dffh_rental:
+    name: Victorian DFFH Rental Report — moving annual rents by suburb
+    page_url: https://www.dffh.vic.gov.au/publications/rental-report
+    link_pattern: (?i)moving-annual-rents?-by-suburb.*\.xlsx$
+    licence: CC BY 4.0
+    attribution: "Source: Department of Families, Fairness and Housing (Victoria), Rental Report"
+    commercial_use: pending
+    cadence_days: 92
