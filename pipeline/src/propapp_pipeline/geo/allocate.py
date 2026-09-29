@@ -17,12 +17,16 @@ class Correspondence:
 
 
 class CorrespondenceIndex:
-    def __init__(self) -> None:
+    def __init__(self, sal_codes: set[str] | None = None) -> None:
         self._by_source: dict[tuple[str, str], list[Correspondence]] = defaultdict(list)
+        self.sal_codes = sal_codes
 
     @classmethod
-    def from_rows(cls, rows: Iterable[Correspondence]) -> "CorrespondenceIndex":
-        index = cls()
+    def from_rows(
+        cls, rows: Iterable[Correspondence], sal_codes: set[str] | None = None
+    ) -> "CorrespondenceIndex":
+        """`sal_codes` limits SAL pass-through values to known suburbs (None allows any)."""
+        index = cls(sal_codes)
         for row in rows:
             index._by_source[(row.from_geography, row.from_code)].append(row)
         return index
@@ -33,7 +37,11 @@ class CorrespondenceIndex:
             "select from_geography, from_code, sal_code, weight, ratio "
             "from data.geo_correspondences"
         )
-        return cls.from_rows(Correspondence(*r) for r in rows)
+        sal_codes = {r[0] for r in conn.execute("select sal_code from data.suburbs")}
+        return cls.from_rows((Correspondence(*r) for r in rows), sal_codes)
+
+    def is_known_sal(self, code: str) -> bool:
+        return self.sal_codes is None or code in self.sal_codes
 
     def targets(self, geography: str, code: str) -> list[Correspondence]:
         return self._by_source.get((geography, code), [])
@@ -62,6 +70,8 @@ def allocate(
     for v in values:
         total += 1
         if v.geography == "SAL":
+            if not index.is_known_sal(v.code):
+                continue
             matched += 1
             observations.append(Observation(v.code, v.metric, v.period, v.value, source, "SAL"))
             continue

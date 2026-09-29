@@ -26,10 +26,6 @@ def test_low_match_rate_fails():
     assert not r.passed and "match rate" in r.failures[0]
 
 
-def test_empty_input_counts_as_full_match():
-    assert check(NormaliseResult([], 0, 0), None, 0.25).passed
-
-
 def test_out_of_range_value_fails():
     bad = Observation("10001", "owner_occupier_share", Period.year(2021), 1.4, "fake", "SAL")
     r = check(NormaliseResult([bad], 1, 1), None, 0.25)
@@ -38,3 +34,8 @@ def test_out_of_range_value_fails():
 
 def test_no_tolerance_skips_row_count():
     assert check(NormaliseResult(obs(10), 10, 10), previous_rows=100, tolerance=None).passed
+
+
+def test_zero_observations_fail():
+    r = check(NormaliseResult([], 0, 0), None, 0.25)
+    assert not r.passed and "no observations" in r.failures[0]

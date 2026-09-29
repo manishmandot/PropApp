@@ -22,6 +22,7 @@ TABLES = {
 }
 TENURE = ["O_OR_Total", "O_MTG_Total", "Total_Total"]
 MEDIANS = set(TABLES["G02"].values())
+MIN_TENURE_DWELLINGS = 5
 
 
 @register
@@ -58,15 +59,30 @@ class AbsCensusAdapter(Adapter):
                     if value is not None:
                         values.append(GeoValue("SAL", code, metric, CENSUS, value))
                 if table == "G37":
-                    owned, mortgaged, total = (parse_number(row[c]) for c in TENURE)
-                    if total:
+                    share = _owner_occupier_share(*(parse_number(row[c]) for c in TENURE))
+                    if share is not None:
                         values.append(GeoValue("SAL", code, "owner_occupier_share", CENSUS,
-                                               ((owned or 0) + (mortgaged or 0)) / total))
+                                               share))
         return _drop_medians_of_empty_suburbs(values)
 
     def normalise(self, rows, ctx):
         result = allocate(rows, ctx.index, self.source_id)
         return NormaliseResult(result.observations, result.matched, result.total)
+
+
+def _owner_occupier_share(
+    owned: float | None, mortgaged: float | None, total: float | None
+) -> float | None:
+    """Owned outright + mortgaged over all occupied dwellings.
+
+    Skipped when a component is missing or the suburb has too few dwellings for Census
+    perturbation to leave a meaningful ratio; capped at 1 because ABS perturbs totals and
+    components independently. `Total_Total` includes "not stated", so the share is a
+    slight understatement.
+    """
+    if owned is None or mortgaged is None or total is None or total < MIN_TENURE_DWELLINGS:
+        return None
+    return min((owned + mortgaged) / total, 1.0)
 
 
 def _drop_medians_of_empty_suburbs(values: list[GeoValue]) -> list[GeoValue]:

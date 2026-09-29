@@ -90,3 +90,18 @@ def test_cli_exit_code(seeded_suburbs, tmp_path, monkeypatch):
     args = ["--config", str(config), "run", "fake"]
     assert main(args, raw_store=store) == 0
     assert main([*args, "--option", "raise_in_parse=1"], raw_store=store) == 1
+
+
+def test_runner_tells_adapter_last_success(seeded_suburbs, tmp_path, monkeypatch):
+    seen = []
+    from tests.fake_adapter import FakeAdapter
+    original = FakeAdapter.fetch
+
+    def spy(self, http, config):
+        seen.append(self.last_success)
+        return original(self, http, config)
+
+    monkeypatch.setattr(FakeAdapter, "fetch", spy)
+    run(seeded_suburbs, tmp_path)
+    run(seeded_suburbs, tmp_path)
+    assert seen[0] is None and seen[1] == date.today()

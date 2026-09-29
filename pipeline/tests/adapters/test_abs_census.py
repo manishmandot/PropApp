@@ -53,3 +53,16 @@ def test_missing_column_raises():
     bad = G02.replace(b"Median_tot_hhd_inc_weekly", b"Median_income")
     with pytest.raises(SourceLayoutError, match="Median_tot_hhd_inc_weekly"):
         AbsCensusAdapter().parse(census_zip(bad))
+
+
+def test_owner_share_skips_blank_components_and_tiny_totals_and_clamps():
+    g37 = (b"SAL_CODE_2021,O_OR_Total,O_MTG_Total,R_Tot_Total,Total_Total\n"
+           b"SAL10001,,300,450,1000\nSAL10002,2,2,0,3\nSAL10003,60,50,0,100\n")
+    raw = census_zip()
+    from .conftest import zip_bytes as zb
+    raw = [RawFile("census.zip", zb({
+        DIR + "2021Census_G01_AUST_SAL.csv": G01, DIR + "2021Census_G02_AUST_SAL.csv": G02,
+        DIR + "2021Census_G37_AUST_SAL.csv": g37}))]
+    shares = {o.suburb_code: o.value for o in normalised(raw).observations
+              if o.metric == "owner_occupier_share"}
+    assert shares == {"10003": 1.0}

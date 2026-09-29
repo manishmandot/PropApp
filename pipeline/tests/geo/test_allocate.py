@@ -52,3 +52,11 @@ def test_sal_values_pass_through(idx):
 
 def test_targets_unknown_is_empty(idx):
     assert idx.targets("SA2", "nope") == []
+
+
+def test_unknown_sal_code_is_unmatched():
+    idx = CorrespondenceIndex.from_rows([], sal_codes={"10001"})
+    res = allocate([GeoValue("SAL", "19494", "median_age", Y, 38),
+                    GeoValue("SAL", "10001", "median_age", Y, 40)], idx, "abs_census")
+    assert (res.matched, res.total) == (1, 2)
+    assert [o.suburb_code for o in res.observations] == ["10001"]

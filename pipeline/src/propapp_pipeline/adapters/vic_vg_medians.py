@@ -10,7 +10,11 @@ from propapp_pipeline.parsing import SourceLayoutError, find_header_row, parse_n
 
 MONTHS = {m: i for i, m in enumerate(
     ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], 1)}
-MONTH = re.compile(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*", re.IGNORECASE)
+MONTH = re.compile(
+    r"\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|"
+    r"sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b",
+    re.IGNORECASE,
+)
 YEAR = re.compile(r"\b(\d{4})\b")
 KINDS = ("house", "unit")
 
@@ -69,12 +73,18 @@ class VicVgMediansAdapter(Adapter):
         df = sheet.iloc[h + 1:].copy()
         df.columns = [str(c).strip() for c in sheet.iloc[h]]
         columns = list(df.columns)
-        quarters = {c: p for c in columns if (p := quarter_label(c))}
-        if not quarters:
-            raise SourceLayoutError(f"{self.source_id}: no quarter median columns")
-        latest = max(quarters, key=lambda c: quarters[c].start)
         median_12m = _column(columns, self.source_id, "12 month|annual|year", "median")
         count_12m = _column(columns, self.source_id, "sales", "12 month|annual|year")
+        quarters = {c: p for c in columns
+                    if c not in (median_12m, count_12m) and (p := quarter_label(c))}
+        if not quarters:
+            raise SourceLayoutError(f"{self.source_id}: no quarter median columns")
+        newest = max(p.start for p in quarters.values())
+        latest_columns = [c for c, p in quarters.items() if p.start == newest]
+        if len(latest_columns) > 1:
+            raise SourceLayoutError(
+                f"{self.source_id}: several columns for the latest quarter: {latest_columns}")
+        latest = latest_columns[0]
         return [
             {"kind": kind, "suburb": str(r["Suburb"]).strip(), "period": quarters[latest],
              "median_3m": parse_number(r[latest]), "median_12m": parse_number(r[median_12m]),

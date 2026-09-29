@@ -24,6 +24,8 @@ def check(
 ) -> QualityReport:
     failures: list[str] = []
     rows = len(result.observations)
+    if rows == 0:
+        failures.append("no observations produced (empty file or all rows filtered out)")
     if previous_rows and tolerance is not None:
         change = abs(rows - previous_rows) / previous_rows
         if change > tolerance:

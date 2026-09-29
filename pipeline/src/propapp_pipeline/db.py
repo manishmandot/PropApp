@@ -1,3 +1,5 @@
+from datetime import date
+
 import psycopg
 
 from propapp_pipeline.models import Observation
@@ -41,6 +43,13 @@ def previous_rows_written(conn: psycopg.Connection, source: str) -> int | None:
         (source,),
     ).fetchone()
     return row[0] if row else None
+
+
+def last_success_date(conn: psycopg.Connection, source: str) -> date | None:
+    row = conn.execute(
+        "select max(started_at)::date from data.ingestion_runs "
+        "where source = %s and status = 'success'", (source,)).fetchone()
+    return row[0]
 
 
 def upsert_observations(conn: psycopg.Connection, obs: list[Observation]) -> int:

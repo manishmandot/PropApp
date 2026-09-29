@@ -8,6 +8,14 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: read
+
+# Ingestion jobs never overlap (e.g. a backfill and the weekly NSW run).
+concurrency:
+  group: pipeline-ingest
+  cancel-in-progress: false
+
 jobs:
   run:
     runs-on: ubuntu-latest

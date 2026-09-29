@@ -28,3 +28,15 @@ def test_supabase_ensure_bucket_creates_when_missing(httpx_mock):
     SupabaseRawStore("https://p.supabase.co", "secret", httpx.Client()).ensure_bucket()
     created = httpx_mock.get_requests()[-1]
     assert b'"public": false' in created.content or b'"public":false' in created.content
+
+
+def test_bucket_created_with_size_limit(httpx_mock):
+    import json
+
+    import httpx
+    httpx_mock.add_response(method="GET", url="https://p.supabase.co/storage/v1/bucket/raw",
+                            status_code=404)
+    httpx_mock.add_response(method="POST", url="https://p.supabase.co/storage/v1/bucket")
+    SupabaseRawStore("https://p.supabase.co", "secret", httpx.Client()).ensure_bucket()
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body["file_size_limit"] == 1024 ** 3

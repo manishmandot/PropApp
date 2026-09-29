@@ -39,6 +39,8 @@ class Adapter(ABC):
 
     def __init__(self, **options: str) -> None:
         self.options = options
+        # Date of this source's last successful run, set by the runner before fetch.
+        self.last_success: date | None = None
 
     @abstractmethod
     def fetch(self, http: httpx.Client, config: dict) -> list[RawFile]: ...

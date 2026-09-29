@@ -5,6 +5,10 @@ from typing import Protocol
 
 import httpx
 
+# Census DataPacks and NSW yearly sales zips exceed Supabase's 50 MB default; the
+# project's global upload limit must also be raised to at least this (see README).
+MAX_RAW_FILE_BYTES = 1024**3
+
 
 @dataclass(frozen=True)
 class RawFile:
@@ -49,7 +53,8 @@ class SupabaseRawStore:
         self.http.post(
             f"{self.url}/storage/v1/bucket",
             headers=self.headers,
-            json={"id": self.bucket, "name": self.bucket, "public": False},
+            json={"id": self.bucket, "name": self.bucket, "public": False,
+                  "file_size_limit": MAX_RAW_FILE_BYTES},
         ).raise_for_status()
 
     def put(self, source: str, run_date: date, file: RawFile) -> str:

@@ -49,3 +49,19 @@ def test_missing_sales_count_column_raises():
     header = [h for h in HEADER if "Sales" not in h]
     with pytest.raises(SourceLayoutError, match="sales"):
         VicVgMediansAdapter().parse([file("house", [], header)])
+
+
+def test_quarter_detection_ignores_lookalike_columns():
+    header = ["Suburb", "Median 12 months to Sep 2025", "Market share Dec 2023",
+              "Jul - Sep 2025", "No of Sales (12 months)"]
+    res = normalised([file("house", [["ALBERT PARK", 2050000, 5, 2100000, 140]], header)])
+    assert by(res, "20001", "median_sale_price_house_3m", SEP).value == 2100000
+    assert quarter_label("Market Dec 2023") == Period.month(2023, 12)
+    assert quarter_label("Marketing 2023") is None
+
+
+def test_two_columns_for_latest_quarter_raise():
+    header = ["Suburb", "Jul - Sep 2025", "Sep Qtr 2025", "12 Month Median",
+              "No of Sales (12 months)"]
+    with pytest.raises(SourceLayoutError, match="latest quarter"):
+        VicVgMediansAdapter().parse([file("house", [], header)])

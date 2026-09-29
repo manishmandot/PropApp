@@ -9,6 +9,7 @@ from propapp_pipeline.adapters.base import REGISTRY, NormaliseContext
 from propapp_pipeline.db import (
     connect,
     finish_run,
+    last_success_date,
     previous_rows_written,
     start_run,
     upsert_observations,
@@ -49,6 +50,7 @@ def run_source(
     with connect(db_url, autocommit=True) as run_log:
         sync_sources(run_log, config)
         previous = previous_rows_written(run_log, source_id)
+        adapter.last_success = last_success_date(run_log, source_id)
         run_id = start_run(run_log, source_id)
         raw_keys: list[str] = []
         rows_parsed = match_rate = None

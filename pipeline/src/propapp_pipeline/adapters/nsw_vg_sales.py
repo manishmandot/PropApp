@@ -11,6 +11,12 @@ from propapp_pipeline.parsing import SourceLayoutError
 from propapp_pipeline.raw_store import RawFile
 
 WEEKLY_FILES = 4
+# On catch-up, re-fetch from this long before the last successful run.
+CATCH_UP_OVERLAP = timedelta(weeks=2)
+MAX_WEEKLY_FILES = 104
+# Nominal-price transfers and extreme outliers are dropped per sale so one record can
+# never fail a whole batch (and with it, that week's sales).
+MIN_PRICE, MAX_PRICE = 10_000, 50_000_000
 # Field positions in a current-format (2001+) "B" sale record.
 F_PROPERTY_ID, F_UNIT, F_HOUSE, F_STREET, F_LOCALITY, F_POSTCODE = 2, 6, 7, 8, 9, 10
 F_CONTRACT, F_PRICE, F_NATURE, F_STRATA, F_INTEREST, F_DEALING = 13, 15, 17, 19, 22, 23
@@ -58,8 +64,12 @@ class NswVgSalesAdapter(Adapter):
                     for y in range(int(first), int(last or first) + 1)]
         as_of = date.fromisoformat(self.options.get("as_of", date.today().isoformat()))
         newest_monday = as_of - timedelta(days=as_of.weekday())
+        oldest = newest_monday - timedelta(weeks=WEEKLY_FILES - 1)
+        if self.last_success:
+            oldest = min(oldest, self.last_success - CATCH_UP_OVERLAP)
+        weeks = min((newest_monday - oldest).days // 7 + 1, MAX_WEEKLY_FILES)
         files = []
-        for i in range(WEEKLY_FILES):
+        for i in range(weeks):
             monday = newest_monday - timedelta(weeks=i)
             url = config["weekly_url_template"].format(date=monday)
             try:
@@ -114,7 +124,8 @@ def _sale(f: list[str]) -> Sale | None:
     except ValueError:
         return None
     interest = f[F_INTEREST].strip()
-    if f[F_NATURE] != "R" or price <= 0 or interest not in ("", "100") or not f[F_CONTRACT]:
+    if (f[F_NATURE] != "R" or not MIN_PRICE <= price <= MAX_PRICE
+            or interest not in ("", "100") or not f[F_CONTRACT]):
         return None
     address = " ".join(p.strip() for p in (f[F_UNIT], f[F_HOUSE], f[F_STREET],
                                              f[F_LOCALITY], f[F_POSTCODE]) if p.strip())
@@ -161,6 +172,10 @@ ROLLING_SQL = """
       on s.contract_date >= m - interval '11 months'
      and s.contract_date < m + interval '1 month'
      and s.sal_code is not null
+     -- multi-property dealings repeat the full price on every property: exclude them
+     and not exists (select 1 from data.nsw_sales o
+                     where o.dealing_number = s.dealing_number
+                       and o.property_id <> s.property_id)
     group by m, s.sal_code, s.is_strata
 """
 

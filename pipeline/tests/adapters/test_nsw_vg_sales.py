@@ -105,3 +105,29 @@ def test_yearly_backfill_fetch(httpx_mock):
         httpx_mock.add_response(url=f"https://vg.test/yearly/{year}.zip", content=b"z")
     files = NswVgSalesAdapter(years="2024-2025").fetch(make_client(), CONFIG)
     assert [f.filename for f in files] == ["2024.zip", "2025.zip"]
+
+
+def test_implausible_prices_dropped_at_record_level():
+    sales = NswVgSalesAdapter().parse(dat_zip(
+        b_record(1, "20260105", 10), b_record(2, "20260105", 60_000_000),
+        b_record(3, "20260105", 850000)))
+    assert [s.dealing_number for s in sales] == ["D3"]
+
+
+def test_multi_property_dealings_excluded_from_aggregates(conn):
+    two_lots = [b_record(7, "20260110", 3000000), b_record(7, "20260110", 3000000)]
+    two_lots[1] = two_lots[1].replace(";P7;", ";P7B;")
+    res = normalise(conn, dat_zip(b_record(1, "20260105", 900000), *two_lots))
+    jan = Period.month(2026, 1)
+    assert by(res, "10001", "sales_count_house_12m", jan).value == 1
+    assert by(res, "10001", "median_sale_price_house_12m", jan).value == 900000
+
+
+def test_weekly_fetch_catches_up_since_last_success(httpx_mock):
+    httpx_mock.add_response(url="https://vg.test/weekly/20260928.zip", status_code=404)
+    for day in ("20260921", "20260914", "20260907", "20260831", "20260824", "20260817"):
+        httpx_mock.add_response(url=f"https://vg.test/weekly/{day}.zip", content=b"z")
+    adapter = NswVgSalesAdapter(as_of="2026-09-29")
+    adapter.last_success = date(2026, 8, 31)
+    files = adapter.fetch(make_client(), CONFIG)
+    assert files[-1].filename == "20260817.zip" and len(files) == 6
