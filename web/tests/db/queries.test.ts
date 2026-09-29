@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { useDatabase } from "@/lib/db";
 import {
   allSuburbSlugs,
+  findSuburbs,
   getBacktest,
   getFactors,
   getFreshness,
@@ -61,6 +62,13 @@ describe("queries (seeded)", () => {
       "10001",
       "10002",
     ]);
+  });
+
+  it("finds suburbs by name or code, treating wildcards literally", async () => {
+    expect((await findSuburbs("beta")).map((r) => r.sal_code)).toEqual(["10002"]);
+    expect((await findSuburbs("10003")).map((r) => r.sal_code)).toEqual(["10003"]);
+    expect(await findSuburbs("%")).toEqual([]);
+    expect(await findSuburbs("  ")).toEqual([]);
   });
 
   it("freshness flags overdue source", async () => {

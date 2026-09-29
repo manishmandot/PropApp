@@ -78,6 +78,19 @@ export async function searchSuburbs(
   return { rows, total: rows[0]?.total ?? 0 };
 }
 
+/** Up to `limit` suburbs whose name starts with (then contains) `text`, best scored first. */
+export async function findSuburbs(text: string, limit = 8): Promise<SuburbRow[]> {
+  const q = text.trim().slice(0, 60);
+  if (!q) return [];
+  const sql = db();
+  const pattern = `%${q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
+  return sql<SuburbRow[]>`
+    select ${sql.unsafe(SUBURB_COLUMNS)} from api.suburbs
+    where name ilike ${pattern} or sal_code = ${q}
+    order by (name ilike ${`${q}%`}) desc, propapp_score desc nulls last, name
+    limit ${limit}`;
+}
+
 export async function getFreshness(): Promise<Freshness[]> {
   return db()<Freshness[]>`
     select id, name, attribution, licence, last_success::text as last_success, cadence_days,
