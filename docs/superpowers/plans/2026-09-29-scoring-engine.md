@@ -33,15 +33,17 @@ The backtest reuses the same factor code at past dates. Only the weights change 
 | market | `rent_growth_12m` | higher |
 | market | `sales_volume_change` | higher |
 
-- **Normalisation:** winsorise at the 1st and 99th percentiles, then percentile rank = (average rank − 1) / (n − 1) × 100. The rank is 50 when n = 1, and 100 − rank for `lower` factors. Fundamentals are ranked against every suburb with a value; market factors only against suburbs eligible for the market layer.
-- **Market eligibility:** a suburb needs at least **20** sales (house + unit) in the trailing 12 months, and its latest market month must be no more than **6 months** before `as_of`. Otherwise it has no market layer.
+- **Normalisation:** winsorise at the 1st and 99th percentiles, then percentile rank = (average rank − 1) / (n − 1) × 100. The rank is 50 when n = 1, and 100 − rank for `lower` factors. Fundamentals are ranked nationally against every suburb with a value; market factors are ranked **within each state** (`data.suburbs.state`), only against that state's suburbs eligible for the market layer.
+- **Market reference month L:** the suburb's latest month with a sales count that is at least **3 months** before `as_of`'s month (`market_lag_months`), because NSW sales are lodged weeks after contract and recent months are incomplete.
+- **Market eligibility:** a suburb needs at least **20** sales (house + unit) in the trailing 12 months at L, and L must be no more than **6 months** before `as_of`'s month. Otherwise it has no market layer.
 - **Combination:** layer score = Σ wᵢpᵢ / Σ wᵢ over the factors present. A layer is null if more than **30%** of its weight is missing. PropApp score = fundamentals where there's no market layer, otherwise **0.5 × fundamentals + 0.5 × market**.
 - **Coverage values:** `fundamentals_market`, `fundamentals`, `insufficient` (the last when the fundamentals layer is null; its PropApp score is null).
-- **Point in time:** an observation is usable at `as_of` only if its period **ends** on or before `as_of`.
+- **Point in time:** an observation is usable at `as_of` only if its period **ends** on or before `as_of`. The one exception is the backtest, which passes `census_fixed=True` so that `abs_census` observations are usable at every date (the 2021 Census is the only one loaded; spec §5.5). Live scoring never sets it.
   - Month periods end on their last day, quarters on the quarter's last day, years on 31 December.
   - A backtest can use later observations only to compute outcomes.
 - **Weights:** stored at `pipeline/scoring/weights/v<N>.yaml`. `model_version` is the file stem (`v1`). The weights in each layer must sum to 1, within 1e-9.
 - **Tables:** all scoring tables live in schema `data`, with no API grants, like the pipeline tables.
+- **Snapshots:** a scoring run with data cutoff `cutoff` writes snapshot `as_of` = the first day of `cutoff`'s month, replacing any existing snapshot for that month and model version. `score_factors` is kept only for the latest snapshot per model version.
 - **Backtests never write to `scores` or `score_factors`.**
 - Secrets come from the environment only, as in the pipeline.
 - **Out of scope** (web app sub-project): showing disclaimers (spec §5.6), app-facing views over `scores`, and rendering the score history.
@@ -92,7 +94,7 @@ Modified: `pipeline/src/propapp_pipeline/cli.py` (new `score` and `backtest` com
 | Table | Columns |
 |---|---|
 | `score_runs` | `id bigserial pk`, `model_version text`, `as_of date`, `started_at timestamptz default now()`, `finished_at timestamptz`, `status text check in ('running','success','failed')`, `suburbs_scored int`, `error text` |
-| `scores` | `suburb_code text fk → suburbs`, `model_version text`, `as_of date`, `run_id bigint fk → score_runs`, `propapp_score double precision null`, `fundamentals_score double precision null`, `market_score double precision null`, `coverage text check in ('fundamentals_market','fundamentals','insufficient')`, `top_drivers text[]`, `watch_outs text[]`; pk (`suburb_code`,`model_version`,`as_of`) |
+| `scores` | `suburb_code text fk → suburbs`, `model_version text`, `as_of date` (month snapshot), `cutoff date`, `run_id bigint fk → score_runs`, `propapp_score double precision null`, `fundamentals_score double precision null`, `market_score double precision null`, `coverage text check in ('fundamentals_market','fundamentals','insufficient')`, `top_drivers text[]`, `watch_outs text[]`; pk (`suburb_code`,`model_version`,`as_of`) |
 | `score_factors` | `suburb_code`, `model_version`, `as_of`, `factor text`, `layer text check in ('fundamentals','market')`, `raw_value double precision`, `percentile double precision`, `weight double precision`, `contribution double precision`; pk (`suburb_code`,`model_version`,`as_of`,`factor`); fk (`suburb_code`,`model_version`,`as_of`) → `scores` on delete cascade |
 | `backtest_results` | `id bigserial pk`, `run_at timestamptz default now()`, `model_version text`, `horizon_months int check in (12,24)`, `split text check in ('train','holdout')`, `spearman double precision`, `top_decile_excess double precision`, `n_dates int`, `mean_suburbs double precision` |
 
