@@ -9,6 +9,14 @@ class Settings:
     supabase_service_role_key: str
 
     @classmethod
+    def database_only(cls) -> "Settings":
+        """Settings for commands that only touch the database (score, backtest)."""
+        if not os.environ.get("DATABASE_URL"):
+            raise RuntimeError("missing environment variable: DATABASE_URL")
+        return cls(database_url=os.environ["DATABASE_URL"], supabase_url="",
+                   supabase_service_role_key="")
+
+    @classmethod
     def from_env(cls) -> "Settings":
         missing = [k for k in ("DATABASE_URL", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY")
                    if not os.environ.get(k)]

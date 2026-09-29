@@ -137,7 +137,8 @@ Vacancy rate and days on market are excluded in v1 because no free national or s
 ### 5.2 Normalisation and thresholds
 
 - Factor values are winsorised at the 1st and 99th percentiles, then converted to percentile ranks from 0 to 100, inverted where lower is better.
-- Fundamentals factors are ranked against all scored suburbs nationally. Market factors are ranked against suburbs that have market data.
+- Fundamentals factors are ranked against all scored suburbs nationally. Market factors are ranked **within each state**, against that state's suburbs that have market data, because each state's market data comes from different sources and methods (e.g. VIC rents are 12-month moving medians; NSW rents are quarterly new-bond medians).
+- Market figures use months at least 3 months before the scoring date, because NSW sales are lodged weeks after contract and recent months are incomplete.
 - **Thin markets:** a suburb with fewer than 20 sales in the trailing 12 months gets no market layer.
 
 ### 5.3 Combination
@@ -153,7 +154,7 @@ Vacancy rate and days on market are excluded in v1 because no free national or s
 - `scores`: `suburb_code`, `model_version`, `as_of`, `propapp_score`, `fundamentals_score`, `market_score`, `coverage`.
 - `score_factors`: per suburb, per factor: raw value, percentile, weight, and contribution to the layer score.
 - "Top drivers" and "watch-outs" are the three highest and three lowest weighted contributions, rendered from templates in plain English.
-- All historical score runs are retained to power score-history charts.
+- Scores keep one snapshot per month for score-history charts; a later run in the same month replaces that month's snapshot. Factor detail is kept for the latest snapshot only, to bound storage.
 - The scoring job runs automatically after any successful ingestion and can also be triggered manually.
 
 ### 5.5 Backtest
@@ -162,7 +163,8 @@ Vacancy rate and days on market are excluded in v1 because no free national or s
 - The outcome measure is median price growth over the following 12 and 24 months.
 - The metrics are Spearman rank correlation between score and outcome, and the growth of the top-decile suburbs vs the median suburb.
 - Weights are tuned on a training span of years and evaluated on held-out later years. Only held-out results are reported.
-- Known limitation: Census and population figures get revised after release, so the backtest uses current releases and may slightly overstate what was knowable at the time. This is documented alongside the published results.
+- The 2021 Census is the only Census loaded, so the backtest treats Census-based inputs (income, owner-occupier share, dwelling counts) as fixed attributes available at every backtest date. Live scoring always follows the point-in-time rule.
+- Known limitations, documented alongside the published results: this Census exception is a small look-ahead; Census and population figures get revised after release; and NSW sales history includes sales lodged after each backtest date. Each may slightly overstate what was knowable at the time.
 
 ### 5.6 Compliance
 

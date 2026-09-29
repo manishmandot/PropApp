@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       command:
-        description: "Pipeline command, e.g. 'run abs_census', 'run nsw_vg_sales --years 2015-2025', 'load-geo'"
+        description: "e.g. 'run abs_census', 'run nsw_vg_sales --years 2015-2025', 'load-geo', 'score', 'score --cutoff 2025-12-31', 'backtest --years 2016-2024 --holdout-from 2022 --tune 200'"
         required: true
         type: string
 
@@ -36,3 +36,12 @@ jobs:
       - run: uv sync --locked --no-dev
       # COMMAND is split into arguments on purpose.
       - run: uv run python -m propapp_pipeline $COMMAND
+      # Backtest reports and tuned weights would otherwise vanish with the runner.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scoring-output
+          path: |
+            pipeline/scoring/reports/
+            pipeline/scoring/weights/
+          if-no-files-found: ignore

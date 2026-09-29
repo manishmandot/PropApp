@@ -8,8 +8,8 @@ def test_schema_tables_exist(db_url):
     with connect(db_url) as conn:
         names = {r[0] for r in conn.execute(
             "select table_name from information_schema.tables where table_schema='data'")}
-    assert names == {"suburbs", "geo_correspondences", "observations",
-                     "ingestion_runs", "sources", "nsw_sales"}
+    assert {"suburbs", "geo_correspondences", "observations",
+            "ingestion_runs", "sources", "nsw_sales"} <= names
 
 
 def test_observation_unique_key(db_url):

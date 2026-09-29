@@ -1,0 +1,20 @@
+# PropApp scoring weights, model v1 (spec §5.3). Starting weights before any backtest.
+# Each layer's weights must sum to 1.
+fundamentals:
+  population_growth_3y: 0.30
+  supply_pressure: 0.20
+  median_household_income: 0.15
+  owner_occupier_share: 0.15
+  unemployment_rate: 0.10
+  unemployment_change: 0.10
+market:
+  price_growth_12m: 0.25
+  gross_yield: 0.25
+  momentum: 0.20
+  rent_growth_12m: 0.15
+  sales_volume_change: 0.15
+blend_fundamentals: 0.5        # PropApp score = 0.5 × fundamentals + 0.5 × market
+max_missing_weight: 0.30       # a layer is null when more than this share of weight is missing
+thin_market_min_sales: 20      # fewer 12-month sales → no market layer
+market_lag_months: 3           # market figures come from months at least this far back
+market_max_age_months: 6       # older market data → no market layer

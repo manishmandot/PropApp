@@ -5,8 +5,8 @@ import psycopg
 import pytest
 
 MIGRATIONS = Path(__file__).resolve().parents[2] / "supabase" / "migrations"
-DATA_TABLES = ["observations", "geo_correspondences", "nsw_sales", "ingestion_runs", "sources",
-               "suburbs"]
+DATA_TABLES = ["score_factors", "scores", "score_runs", "backtest_results", "observations",
+               "geo_correspondences", "nsw_sales", "ingestion_runs", "sources", "suburbs"]
 
 
 def _with_db(url: str, dbname: str) -> str:
