@@ -116,7 +116,7 @@ Modified: `pipeline/src/propapp_pipeline/cli.py` (new `score` and `backtest` com
 - Produces:
   - `Factor(key: str, layer: Literal["fundamentals","market"], direction: Literal["higher","lower"])`
   - `FACTORS: dict[str, Factor]`, exactly the Global Constraints table
-  - `Weights(model_version: str, fundamentals: dict[str, float], market: dict[str, float], blend_fundamentals: float, max_missing_weight: float, thin_market_min_sales: int, market_max_age_months: int)`
+  - `Weights(model_version: str, fundamentals: dict[str, float], market: dict[str, float], blend_fundamentals: float, max_missing_weight: float, thin_market_min_sales: int, market_lag_months: int, market_max_age_months: int)`
   - `load_weights(path: Path) -> Weights`, which raises `ValueError` if:
     - a key isn't in `FACTORS`, or is in the wrong layer
     - a layer's weights don't sum to 1 (±1e-9)
@@ -125,7 +125,7 @@ Modified: `pipeline/src/propapp_pipeline/cli.py` (new `score` and `backtest` com
 - `v1.yaml` has these starting weights, before any backtest:
   - **fundamentals:** `population_growth_3y` 0.30, `supply_pressure` 0.20, `median_household_income` 0.15, `owner_occupier_share` 0.15, `unemployment_rate` 0.10, `unemployment_change` 0.10
   - **market:** `price_growth_12m` 0.25, `gross_yield` 0.25, `momentum` 0.20, `rent_growth_12m` 0.15, `sales_volume_change` 0.15
-  - **other settings:** `blend_fundamentals: 0.5`, `max_missing_weight: 0.30`, `thin_market_min_sales: 20`, `market_max_age_months: 6`
+  - **other settings:** `blend_fundamentals: 0.5`, `max_missing_weight: 0.30`, `thin_market_min_sales: 20`, `market_lag_months: 3`, `market_max_age_months: 6`
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -157,7 +157,8 @@ def test_factor_in_wrong_layer_rejected(tmp_path): ...  # gross_yield under fund
 - Produces:
   - `period_end(start: date, granularity: str) -> date`
   - `load_observations(conn) -> pd.DataFrame`: one frame with the columns `suburb_code, metric, period_start (datetime64), granularity, period_end (datetime64), value, source`, loaded in a single query.
-  - `as_of_view(obs: pd.DataFrame, as_of: date) -> pd.DataFrame`: the rows with `period_end <= as_of`. Then, for each (`suburb_code`, `metric`, `period_start`), it keeps one row: the alphabetically first `source`.
+  - `load_suburb_states(conn) -> pd.Series`: `state` indexed by `suburb_code`, from `data.suburbs`.
+  - `as_of_view(obs: pd.DataFrame, as_of: date, census_fixed: bool = False) -> pd.DataFrame`: the rows with `period_end <= as_of`, plus every `abs_census` row when `census_fixed` is true. Then, for each (`suburb_code`, `metric`, `period_start`), it keeps one row: the alphabetically first `source`.
   - `latest(view, metric) -> pd.DataFrame`: indexed by `suburb_code`, with columns `period_start, value`. It gives each suburb's latest period of `metric`, with ties resolved by `as_of_view`.
   - `value_at(view, metric, period_start: pd.Series) -> pd.Series`: the value of `metric` at the given period start for each suburb (NaN if missing). Growth factors use it to look up the earlier value.
 
@@ -178,6 +179,10 @@ def test_latest_value_prefers_newest_then_source(obs_frame):
     # 10001 rent: nsw_rent Q2 = 600, vic_dffh_rental Q2 = 650, nsw_rent Q1 = 580
     assert latest(as_of_view(obs_frame, date(2025, 12, 31)),
                   "median_weekly_rent_all_q").loc["10001", "value"] == 600
+
+def test_census_fixed_view(obs_frame):             # 2021 census row visible at 2018-06-30 only when fixed
+    assert not has_census(as_of_view(obs_frame, date(2018, 6, 30)))
+    assert has_census(as_of_view(obs_frame, date(2018, 6, 30), census_fixed=True))
 
 def test_load_observations_roundtrip(db_url): ...   # insert 2 rows via SQL; frame has period_end column
 ```
@@ -242,9 +247,9 @@ def test_unemployment_rate_and_change():
 - Test: `pipeline/tests/scoring/test_market.py`
 
 **Interfaces:**
-- Consumes: Task 3 helpers, and `Weights.thin_market_min_sales` and `Weights.market_max_age_months` (Task 2)
+- Consumes: Task 3 helpers, and `Weights.thin_market_min_sales`, `Weights.market_lag_months` and `Weights.market_max_age_months` (Task 2)
 - Produces: `compute_market(view, as_of: date, weights: Weights) -> MarketResult(values: pd.DataFrame, eligible: pd.Index, dwelling_type: pd.Series)`, where:
-  - **L** is the suburb's latest month with `sales_count_house_12m` or `sales_count_unit_12m`.
+  - **L** is the suburb's latest month with `sales_count_house_12m` or `sales_count_unit_12m` that is at least `market_lag_months` before `as_of`'s month.
   - The suburb is **eligible** when house + unit 12-month count at L ≥ `thin_market_min_sales`, **and** L is no more than `market_max_age_months` months before `as_of`'s month.
   - **Dominant type** (`house` or `unit`) is whichever has the larger 12-month count at L; a tie goes to `house`. The median metrics below use the dominant type.
   - `values` holds only eligible suburbs, one column per market key:
@@ -263,6 +268,7 @@ def test_unemployment_rate_and_change():
 
 ```python
 def test_thin_market_not_eligible(): ...            # 12 + 7 = 19 sales → not in eligible
+def test_lodgement_lag_excludes_recent_months(): ... # as_of 2025-09-29: data for 07 and 08 ignored, L = 2025-06
 def test_stale_market_not_eligible():               # L = 2025-01, as_of 2025-09-29 → 8 months old
     assert "10001" not in compute_market(view, date(2025, 9, 29), W).eligible
 def test_dominant_type_and_growth():                # units 30, houses 25 → unit medians used
@@ -288,7 +294,7 @@ def test_momentum():                                # 3m 440k at L, 400k at L−
 **Interfaces:**
 - Consumes: `FACTORS`, `Weights`
 - Produces:
-  - `percentiles(raw: pd.DataFrame) -> pd.DataFrame`: the same shape as `raw`, with each column winsorised at 1/99 and ranked per the Global Constraints (NaN stays NaN; a `lower` factor gets 100 − rank).
+  - `percentiles(raw: pd.DataFrame, groups: pd.Series | None = None) -> pd.DataFrame`: the same shape as `raw`, with each column winsorised at 1/99 and ranked per the Global Constraints (NaN stays NaN; a `lower` factor gets 100 − rank). With `groups` (state per suburb), winsorising and ranking happen separately within each group; market factors always pass the states.
   - `combine(pct_fund: pd.DataFrame, pct_market: pd.DataFrame, weights: Weights) -> Combined`, where `Combined` has:
     - `scores: pd.DataFrame`, indexed by suburb (every suburb in `pct_fund` ∪ `pct_market`), with columns `fundamentals_score, market_score, propapp_score, coverage`
     - `factors: pd.DataFrame`, in long format with columns `suburb_code, factor, layer, percentile, weight, contribution`, for the factors present only. `weight` is the reweighted share within the layer (a suburb's weights in each layer sum to 1), and `contribution` = weight × percentile, so contributions sum to the layer score.
@@ -300,6 +306,10 @@ def test_momentum():                                # 3m 440k at L, 400k at L−
 def test_percentile_rank_and_direction():
     p = percentiles(pd.DataFrame({"supply_pressure": [1.0, 2.0, 3.0]}, index=list("abc")))
     assert p["supply_pressure"].tolist() == [100.0, 50.0, 0.0]
+
+def test_market_ranked_within_state():
+    # NSW 1.0, 2.0 and VIC 10.0, 20.0 → each state's lower value 0, higher 100
+    ...
 
 def test_single_value_is_50(): ...
 def test_winsorised_tails_tie(): ...                   # 200 values, top 1% tie at the top rank
@@ -358,11 +368,11 @@ def test_contributions_sum_to_layer_score(): ...
 - Consumes: Tasks 2–7
 - Produces:
   - `score_as_of(obs: pd.DataFrame, as_of: date, weights: Weights) -> ScoreResult(scores: pd.DataFrame, factors: pd.DataFrame)`. It is pure: it takes the view, computes fundamentals and market factors, then `percentiles` → `combine` → `explain`. `factors` gains a `raw_value` column.
-  - `run_scoring(db_url: str, as_of: date, weights: Weights) -> int`:
+  - `run_scoring(db_url: str, cutoff: date, weights: Weights) -> int`, which scores with `score_as_of(obs, cutoff, weights)` and stores the snapshot `as_of = cutoff.replace(day=1)`:
     - It records a `score_runs` row (`running`, then `success`/`failed`) on its own autocommit connection.
-    - In one transaction, it deletes existing `scores` for (`model_version`, `as_of`) (which cascades to their factors) and inserts the new ones with `COPY`.
+    - In one transaction, it deletes existing `scores` for (`model_version`, `as_of`) (which cascades to their factors), inserts the new ones with `COPY`, then deletes `score_factors` for older snapshots of the same model version.
     - It returns the number of suburbs scored and re-raises on failure after logging.
-  - CLI: `python -m propapp_pipeline score [--as-of YYYY-MM-DD] [--weights v1]`. `--as-of` defaults to today, and `--weights` defaults to the highest-numbered `v*.yaml` in `WEIGHTS_DIR`. It exits 1 on failure. `score` only needs `DATABASE_URL`, so `Settings` gets a `database_only()` constructor that reads just that variable.
+  - CLI: `python -m propapp_pipeline score [--cutoff YYYY-MM-DD] [--weights v1]`. `--cutoff` defaults to today, and `--weights` defaults to the highest-numbered `v*.yaml` in `WEIGHTS_DIR`. It exits 1 on failure. `score` only needs `DATABASE_URL`, so `Settings` gets a `database_only()` constructor that reads just that variable.
 
 - [ ] **Step 1: Write the failing tests** (DB). Seed `suburbs` and a small `observations` set covering all three coverage states.
 
@@ -375,7 +385,11 @@ def test_run_scoring_writes_scores_and_factors(db_url, seeded):
 
 def test_rescore_replaces(db_url, seeded):
     run_scoring(...); run_scoring(...)
-    assert count(db_url, "scores") == 3 and count(db_url, "score_runs") == 2
+    assert count(db_url, "scores") == 3 and count(db_url, "score_runs") == 2   # same month
+
+def test_older_snapshot_factors_pruned(db_url, seeded):
+    # score cutoffs 2025-11-30 then 2025-12-31 → 6 scores rows, factors only for 2025-12-01
+    ...
 
 def test_failed_scoring_keeps_previous_scores(db_url, seeded, monkeypatch): ...   # patch explain to raise
 def test_cli_score_exit_codes(db_url, seeded, monkeypatch): ...
@@ -404,7 +418,7 @@ def test_cli_score_exit_codes(db_url, seeded, monkeypatch): ...
     - Spearman correlation, computed as the Pearson correlation of the average ranks (no scipy).
     - Top-decile excess: the median outcome of the top 10% by score, minus the median outcome of all suburbs.
     - n: the number of suburbs with both values.
-  - `evaluate(obs, dates, weights, horizon_months) -> list[DateMetrics]`. It scores only suburbs with **NSW** codes (SAL codes starting `1`), since sales history exists only there.
+  - `evaluate(obs, states, dates, weights, horizon_months) -> list[DateMetrics]`. It builds each date's view with `census_fixed=True` and scores only **NSW** suburbs (`states == "NSW"`), since sales history exists only there.
   - `tune(obs, train_dates, weights, samples: int = 200, seed: int = 7) -> Weights`:
     - Keeps the settings and draws per-layer Dirichlet(1) weights.
     - Picks the draw with the highest mean 12-month Spearman over `train_dates`.
@@ -414,7 +428,7 @@ def test_cli_score_exit_codes(db_url, seeded, monkeypatch): ...
     - Splits the dates into train (< `holdout_from`) and holdout.
     - If `tune_samples` is set, tunes on train and writes the tuned weights to `WEIGHTS_DIR/v<N>.yaml`.
     - Evaluates the chosen weights on both splits at 12 and 24 months.
-    - Inserts 4 rows into `backtest_results` and writes a Markdown report to `pipeline/scoring/reports/<model_version>-backtest.md`. The report includes the §5.5 revision-lag limitation note.
+    - Inserts 4 rows into `backtest_results` and writes a Markdown report to `pipeline/scoring/reports/<model_version>-backtest.md`. The report includes the three §5.5 limitations: the fixed Census, data revisions, and NSW late lodgements.
   - CLI: `python -m propapp_pipeline backtest --years 2016-2024 --holdout-from 2022 [--weights v1] [--tune 200]`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -443,7 +457,7 @@ def test_backtest_does_not_write_scores(db_url, seeded_history, tmp_path, monkey
 ### Task 10: Schedule scoring after ingestion, and runbook
 
 **Files:**
-- Modify: `.github/workflows/pipeline-weekly.yml`, `pipeline-monthly.yml`, `pipeline-manual.yml`, and `pipeline/README.md`
+- Modify: `.github/workflows/pipeline-weekly.yml`, `pipeline-monthly.yml`, `pipeline-manual.yml`, `pipeline/README.md`, and `pipeline/sources.yaml` (building approvals `startPeriod=2014-01`, so a 2016 backtest has 12 months of approvals history)
 
 **Interfaces:**
 - Consumes: the `score` and `backtest` CLI commands (Tasks 8–9)
@@ -453,12 +467,12 @@ def test_backtest_does_not_write_scores(db_url, seeded_history, tmp_path, monkey
   - `if: ${{ !cancelled() }}`, so scoring still runs when one matrix source fails, using the data that did load
   - the same concurrency, permissions and secrets
   - the command `uv run python -m propapp_pipeline score`
-- [ ] **Step 2: Manual workflow.** Update the input description to list `score`, `score --as-of 2025-12-31` and `backtest --years 2016-2024 --holdout-from 2022 --tune 200`.
+- [ ] **Step 2: Manual workflow.** Update the input description to list `score`, `score --cutoff 2025-12-31` and `backtest --years 2016-2024 --holdout-from 2022 --tune 200`. Add a final `actions/upload-artifact@v4` step (`if: always()`) that uploads `pipeline/scoring/reports/` and `pipeline/scoring/weights/`, so the report and any tuned weights survive the runner.
 - [ ] **Step 3: Validate the workflows.** Run `actionlint`. Expected: clean.
 - [ ] **Step 4: README "Scoring" section.** It covers:
   - What the score is and where the weights live.
   - Running `score` by hand.
   - Running the first backtest (after the NSW backfill): `backtest --years 2016-2024 --holdout-from 2022 --tune 200`.
-  - Reviewing `scoring/reports/v2-backtest.md` and committing `weights/v2.yaml` if the held-out Spearman is positive. The next scheduled `score` then uses `v2` automatically.
+  - Downloading the workflow artifact, reviewing `reports/v2-backtest.md`, and committing `weights/v2.yaml` if the held-out Spearman is positive. The next scheduled `score` then uses `v2` automatically.
   - Where results are stored.
 - [ ] **Step 5: Commit.** `git commit -m "ci(scoring): score after every ingestion; runbook"`
