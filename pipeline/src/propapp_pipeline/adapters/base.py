@@ -35,7 +35,7 @@ class Adapter(ABC):
     """One public data source: fetch raw files, parse them, normalise to observations."""
 
     source_id: ClassVar[str]
-    row_count_tolerance: ClassVar[float] = 0.25
+    row_count_tolerance: ClassVar[float | None] = 0.25
 
     def __init__(self, **options: str) -> None:
         self.options = options

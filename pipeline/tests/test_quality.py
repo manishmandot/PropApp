@@ -34,3 +34,7 @@ def test_out_of_range_value_fails():
     bad = Observation("10001", "owner_occupier_share", Period.year(2021), 1.4, "fake", "SAL")
     r = check(NormaliseResult([bad], 1, 1), None, 0.25)
     assert not r.passed and "owner_occupier_share" in r.failures[0]
+
+
+def test_no_tolerance_skips_row_count():
+    assert check(NormaliseResult(obs(10), 10, 10), previous_rows=100, tolerance=None).passed

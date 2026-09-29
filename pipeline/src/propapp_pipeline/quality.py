@@ -19,12 +19,12 @@ class QualityReport:
 def check(
     result: NormaliseResult,
     previous_rows: int | None,
-    tolerance: float,
+    tolerance: float | None,
     min_match_rate: float = 0.98,
 ) -> QualityReport:
     failures: list[str] = []
     rows = len(result.observations)
-    if previous_rows:
+    if previous_rows and tolerance is not None:
         change = abs(rows - previous_rows) / previous_rows
         if change > tolerance:
             failures.append(

@@ -4,4 +4,5 @@ from propapp_pipeline.adapters import (  # noqa: F401
     abs_census,
     abs_erp,
     jsa_salm,
+    nsw_vg_sales,
 )

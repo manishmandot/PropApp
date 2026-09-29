@@ -46,8 +46,8 @@ def previous_rows_written(conn: psycopg.Connection, source: str) -> int | None:
 def upsert_observations(conn: psycopg.Connection, obs: list[Observation]) -> int:
     """Upsert observations on the unique key. Returns the number of rows written."""
     with conn.cursor() as cur:
-        cur.execute(
-            "create temp table _obs (like data.observations including defaults) on commit drop")
+        cur.execute("drop table if exists _obs")
+        cur.execute("create temp table _obs (like data.observations including defaults)")
         with cur.copy(
             "copy _obs (suburb_code, metric, period_start, period_granularity, value, source, "
             "source_geography) from stdin"

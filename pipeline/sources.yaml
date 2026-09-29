@@ -56,3 +56,14 @@ sources:
     attribution: "Source: Jobs and Skills Australia, Small Area Labour Markets"
     commercial_use: pending
     cadence_days: 92
+
+  nsw_vg_sales:
+    name: NSW Valuer General bulk property sales information
+    # Bulk data page: https://valuation.property.nsw.gov.au/embed/propertySalesInformation
+    url: https://valuation.property.nsw.gov.au/embed/propertySalesInformation
+    weekly_url_template: https://www.valuergeneral.nsw.gov.au/__psi/weekly/{date:%Y%m%d}.zip
+    yearly_url_template: https://www.valuergeneral.nsw.gov.au/__psi/yearly/{year}.zip
+    licence: NSW Valuer General bulk sales data terms of use
+    attribution: "Contains property sales information provided under licence from the Valuer General NSW"
+    commercial_use: pending
+    cadence_days: 7
