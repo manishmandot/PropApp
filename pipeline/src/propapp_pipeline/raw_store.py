@@ -46,23 +46,36 @@ class SupabaseRawStore:
         self.headers = {"authorization": f"Bearer {service_key}", "apikey": service_key}
 
     def ensure_bucket(self) -> None:
-        response = self.http.get(f"{self.url}/storage/v1/bucket/{self.bucket}",
-                                 headers=self.headers)
+        self._ensure(self.bucket, public=False)
+
+    def ensure_public_bucket(self, name: str) -> None:
+        self._ensure(name, public=True)
+
+    def _ensure(self, name: str, *, public: bool) -> None:
+        response = self.http.get(f"{self.url}/storage/v1/bucket/{name}", headers=self.headers)
         if response.status_code == 200:
             return
         self.http.post(
             f"{self.url}/storage/v1/bucket",
             headers=self.headers,
-            json={"id": self.bucket, "name": self.bucket, "public": False,
+            json={"id": name, "name": name, "public": public,
                   "file_size_limit": MAX_RAW_FILE_BYTES},
         ).raise_for_status()
 
+    def put_object(self, bucket: str, key: str, content: bytes,
+                   content_type: str = "application/octet-stream",
+                   cache_seconds: int | None = None) -> None:
+        headers = {**self.headers, "x-upsert": "true", "content-type": content_type}
+        if cache_seconds is not None:
+            headers["cache-control"] = f"max-age={cache_seconds}"
+        self.http.post(
+            f"{self.url}/storage/v1/object/{bucket}/{key}", headers=headers, content=content,
+        ).raise_for_status()
+
+    def public_url(self, bucket: str, key: str) -> str:
+        return f"{self.url}/storage/v1/object/public/{bucket}/{key}"
+
     def put(self, source: str, run_date: date, file: RawFile) -> str:
         key = raw_key(source, run_date, file.filename)
-        self.http.post(
-            f"{self.url}/storage/v1/object/{self.bucket}/{key}",
-            headers={**self.headers, "x-upsert": "true",
-                     "content-type": "application/octet-stream"},
-            content=file.content,
-        ).raise_for_status()
+        self.put_object(self.bucket, key, file.content)
         return key

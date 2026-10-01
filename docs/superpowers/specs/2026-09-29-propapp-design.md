@@ -33,7 +33,7 @@ PropApp is a commercial SaaS that helps Australian property investors shortlist 
 1. **Data pipeline:** ingests, normalises and stores all source data.
 2. **Scoring engine:** turns observations into versioned, explainable scores, plus a backtest.
 3. **Web app:** finder, suburb pages, compare, map, watchlist and alerts.
-4. **Accounts and billing:** auth, plans, Stripe and entitlements.
+4. **Accounts and billing:** auth, plans, Stripe and entitlements, plus the signed-in features of §6 (watchlists and alerts, saved searches, the account page) and switching on the §7.2 plan limits.
 
 Each depends on the one before it. Implementation planning starts with sub-project 1.
 
@@ -174,13 +174,13 @@ Scores are presented as **general information, not financial product advice**. D
 
 ### 6.1 Stack and rendering
 
-- Next.js (App Router) on Vercel, with Supabase JS for auth and data.
+- Next.js (App Router) on Vercel. Public score data is read on the server through a read-only database role (`web_reader`) that can only select from the `api` views; Supabase JS is added with auth in sub-project 4 for user-owned data.
 - Suburb and landing pages use ISR, revalidated after each scoring run and at least daily. Public suburb pages are indexable and are the primary organic acquisition channel.
 
 ### 6.2 Pages
 
 1. **Landing:** explains the score and methodology, and shows the backtest summary.
-2. **Suburb finder:** a table of all suburbs with filters (state, median price range, gross yield, score range, coverage), sortable by PropApp or fundamentals score. Filters can be saved as named searches.
+2. **Suburb finder:** a table of all suburbs with filters (state, median price range, gross yield, score range, coverage), sortable by PropApp or fundamentals score. Saving filters as named searches arrives with sign-in (sub-project 4).
 3. **Suburb page:**
    - PropApp, fundamentals and market scores, with the coverage badge
    - Top drivers and watch-outs
@@ -189,9 +189,11 @@ Scores are presented as **general information, not financial product advice**. D
    - Small map
    - Sources with their last-refreshed dates and attribution
 4. **Compare:** up to 4 suburbs side by side, factor by factor.
-5. **Map explorer:** MapLibre GL choropleth of scores. Suburb boundaries are simplified and pre-built as static vector tiles by the pipeline, hosted in Supabase Storage and regenerated after each scoring run.
-6. **Watchlist and alerts:** save suburbs, and receive an email when a suburb's PropApp score changes by 5 or more points between scoring runs.
-7. **Account:** profile, plan and billing (see §7).
+5. **Map explorer:** MapLibre GL choropleth of scores. Suburb boundaries are simplified and pre-built as a PMTiles vector-tile file by the pipeline (carrying the 5-band score only), hosted in a public Supabase Storage bucket and regenerated after each scoring run. Exact scores on hover come from the server.
+6. **Watchlist and alerts** (sub-project 4): save suburbs, and receive an email when a suburb's PropApp score changes by 5 or more points between scoring runs.
+7. **Account** (sub-project 4): profile, plan and billing (see §7).
+
+The web app sub-project builds pages 1–5 with every feature visible. All plan checks go through one entitlements module, which sub-project 4 connects to real plans.
 
 ### 6.3 Data access
 

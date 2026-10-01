@@ -132,6 +132,18 @@ gap sooner; it isn't built yet.
 Results are also stored in `data.backtest_results`. The report lists the known
 limitations: the fixed 2021 Census, data revisions, and NSW late lodgements.
 
+## Web app hooks
+
+After scoring, the weekly and monthly workflows also:
+
+- rebuild the map tiles (`build-tiles`: suburbs with 5-band scores as PMTiles in the
+  public Storage bucket `tiles`, using `tippecanoe`)
+- ask the website to refresh (`POST $WEB_URL/api/revalidate`, when the `WEB_URL` and
+  `REVALIDATE_SECRET` secrets are set)
+
+`score` also refreshes the `api.suburbs` materialized view the website reads. See
+`web/README.md` for the web deployment.
+
 ## Before public launch
 
 Every source except the ABS ones has `commercial_use: pending` in `sources.yaml`. Confirm

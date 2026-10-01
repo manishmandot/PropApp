@@ -27,6 +27,8 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      WEB_URL: ${{ secrets.WEB_URL }}
+      REVALIDATE_SECRET: ${{ secrets.REVALIDATE_SECRET }}
       COMMAND: ${{ inputs.command }}
     steps:
       - uses: actions/checkout@v4
@@ -34,8 +36,20 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --locked --no-dev
+      # build-tiles (and the tiles step after a manual score) need tippecanoe.
+      - run: sudo apt-get update -q && sudo apt-get install -y -q tippecanoe
       # COMMAND is split into arguments on purpose.
       - run: uv run python -m propapp_pipeline $COMMAND
+      # A manual score also refreshes the map tiles and the website, like scheduled runs.
+      - name: Tiles and site refresh after a manual score
+        if: startsWith(inputs.command, 'score')
+        run: |
+          uv run python -m propapp_pipeline build-tiles
+          if [ -z "$WEB_URL" ] || [ -z "$REVALIDATE_SECRET" ]; then
+            echo "::notice::WEB_URL or REVALIDATE_SECRET not set; skipping site refresh"
+            exit 0
+          fi
+          curl -fsS -X POST "$WEB_URL/api/revalidate" -H "authorization: Bearer $REVALIDATE_SECRET"
       # Backtest reports and tuned weights would otherwise vanish with the runner.
       - uses: actions/upload-artifact@v4
         if: always()
