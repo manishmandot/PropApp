@@ -238,13 +238,17 @@ Mobile app, individual property valuations, portfolio tracking, and AI chat.
 
 For Free users, the "billing month" for view counts is the calendar month.
 
-**Default pricing (owner to confirm before launch):** Pro at A$39/month or A$349/year, GST-inclusive, with a 7-day free trial. A buyer's-agent tier is deferred until customers ask for it.
+**Pricing (confirmed by the owner, 2026-10-01):** Pro at A$39/month or A$349/year, GST-inclusive, with a 7-day free trial. A buyer's-agent tier is deferred until customers ask for it.
+
+**Signed-out visitors (decided 2026-10-01):** suburb pages are fully open to everyone, for search traffic. The finder's top-50 blur, compare, map detail, watchlists and saved searches follow the Free/Pro table and need an account. The 5-detailed-suburbs-a-month limit applies only to signed-in Free users.
 
 ### 7.3 Payments
 
 - Stripe Checkout for purchase and Stripe Customer Portal for plan changes and cancellation. No card data touches PropApp.
 - Stripe webhooks update the `subscriptions` table. Handlers verify signatures and are idempotent on Stripe event ID.
 - Stripe Tax handles GST. The business needs an ABN, and GST registration once over the threshold.
+
+**Email (decided 2026-10-01):** Resend sends both Supabase Auth's sign-in emails (configured as custom SMTP) and score-change alerts.
 
 ### 7.4 Entitlements
 
